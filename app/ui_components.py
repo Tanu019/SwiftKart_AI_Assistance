@@ -208,16 +208,16 @@ def inject_enterprise_css(theme):
             font-weight: 600; 
         }}
         
-        @keyframes pulse-dot {
-            0% { opacity: 0.3; transform: scale(0.92); }
-            50% { opacity: 1; transform: scale(1.12); }
-            100% { opacity: 0.3; transform: scale(0.92); }
-        }
-        .analyzing-pulse {
+        @keyframes pulse-dot {{
+            0% {{ opacity: 0.3; transform: scale(0.92); }}
+            50% {{ opacity: 1; transform: scale(1.12); }}
+            100% {{ opacity: 0.3; transform: scale(0.92); }}
+        }}
+        .analyzing-pulse {{
             animation: pulse-dot 1.2s ease-in-out infinite;
             display: inline-block;
             font-size: 16px;
-        }
+        }}
         
         /* Hide streamlit modebar clutter */
         .modebar {{ display: none !important; }}
