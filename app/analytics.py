@@ -83,18 +83,28 @@ def apply_global_filters(dataframes, filters):
             if filters["persona"] != "All":
                 f_df = f_df[f_df["persona"] == filters["persona"]]
                 
-        # Apply Time Range filter (Month = last 30d, Quarter = last 90d, Total = all)
-        if filters.get("time_range") and name == "orders" and "order_timestamp" in f_df.columns:
-            time_range = filters["time_range"]
-            if time_range in ["Month", "Quarter"]:
-                temp_dt = pd.to_datetime(f_df["order_timestamp"], errors="coerce")
-                max_dt = temp_dt.max()
-                if pd.notnull(max_dt):
-                    days = 30 if time_range == "Month" else 90
-                    cutoff = max_dt - pd.Timedelta(days=days)
-                    f_df = f_df[temp_dt >= cutoff]
+        # Apply Time filter (Specific Month or Quarter or Total)
+        if name == "orders" and "order_timestamp" in f_df.columns:
+            time_filter_type = filters.get("time_filter_type", "Total")
+            temp_dt = pd.to_datetime(f_df["order_timestamp"], errors="coerce")
+            
+            if time_filter_type == "Month" and filters.get("selected_month"):
+                month_val = filters["selected_month"]
+                if month_val != "All Months":
+                    month_str = temp_dt.dt.strftime("%B %Y")
+                    f_df = f_df[month_str == month_val]
+            elif time_filter_type == "Quarter" and filters.get("selected_quarter"):
+                q_val = filters["selected_quarter"]
+                if q_val != "All Quarters":
+                    q_str = "Q" + temp_dt.dt.quarter.astype(str) + " " + temp_dt.dt.year.astype(str)
+                    f_df = f_df[q_str == q_val]
                 
         filtered[name] = f_df
+        
+    # Also sync order_items if orders are filtered
+    if "orders" in filtered and "order_items" in filtered and not filtered["orders"].empty:
+        valid_order_ids = set(filtered["orders"]["order_id"])
+        filtered["order_items"] = filtered["order_items"][filtered["order_items"]["order_id"].isin(valid_order_ids)]
         
     return filtered
 

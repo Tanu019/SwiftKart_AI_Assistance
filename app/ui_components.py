@@ -256,30 +256,53 @@ def render_chart_section(title, fig, button_text, explain_prompt, key):
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 def render_executive_overview(kpis, briefing, charts_data):
-    # Top Dashboard Header with Interactive Time Filters (Matching Image 2)
-    col_hdr, col_btns = st.columns([0.62, 0.38])
+    # Top Dashboard Header with Interactive Time Filters & Dropdowns (Matching Image 2)
+    col_hdr, col_btns = st.columns([0.55, 0.45])
     with col_hdr:
         st.markdown("""
-            <div style="margin-bottom: 1rem; padding-top: 0.2rem;">
+            <div style="margin-bottom: 0.6rem; padding-top: 0.2rem;">
                 <h1 class="dashboard-header-title">Executive Analytics</h1>
                 <p class="dashboard-header-subtitle">Real-time Quick-Commerce Performance Overview</p>
             </div>
         """, unsafe_allow_html=True)
     with col_btns:
-        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
-        current_tr = st.session_state.get("time_range", "Total")
+        st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+        current_tr = st.session_state.get("time_filter_type", "Total")
         b1, b2, b3 = st.columns(3)
         with b1:
             if st.button("Month", use_container_width=True, type="primary" if current_tr == "Month" else "secondary", key="btn_month"):
-                st.session_state.time_range = "Month"
+                st.session_state.time_filter_type = "Month"
                 st.rerun()
         with b2:
             if st.button("Quarter", use_container_width=True, type="primary" if current_tr == "Quarter" else "secondary", key="btn_quarter"):
-                st.session_state.time_range = "Quarter"
+                st.session_state.time_filter_type = "Quarter"
                 st.rerun()
         with b3:
             if st.button("Total", use_container_width=True, type="primary" if current_tr == "Total" else "secondary", key="btn_total"):
-                st.session_state.time_range = "Total"
+                st.session_state.time_filter_type = "Total"
+                st.rerun()
+                
+        # Dropdown selection for specific Month or Quarter
+        if current_tr == "Month":
+            all_months = [
+                "January 2025", "February 2025", "March 2025", "April 2025",
+                "May 2025", "June 2025", "July 2025", "August 2025",
+                "September 2025", "October 2025", "November 2025", "December 2025", "January 2026"
+            ]
+            default_m = st.session_state.get("selected_month", "December 2025")
+            default_idx = all_months.index(default_m) if default_m in all_months else 11
+            chosen_m = st.selectbox("Select Month", all_months, index=default_idx, key="month_selector", label_visibility="collapsed")
+            if chosen_m != st.session_state.get("selected_month"):
+                st.session_state.selected_month = chosen_m
+                st.rerun()
+                
+        elif current_tr == "Quarter":
+            all_quarters = ["Q1 2025", "Q2 2025", "Q3 2025", "Q4 2025", "Q1 2026"]
+            default_q = st.session_state.get("selected_quarter", "Q4 2025")
+            default_idx = all_quarters.index(default_q) if default_q in all_quarters else 3
+            chosen_q = st.selectbox("Select Quarter", all_quarters, index=default_idx, key="quarter_selector", label_visibility="collapsed")
+            if chosen_q != st.session_state.get("selected_quarter"):
+                st.session_state.selected_quarter = chosen_q
                 st.rerun()
     
     # KPI Rows

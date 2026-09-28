@@ -37,8 +37,12 @@ def main():
         st.session_state.current_page = "📊 Dashboard"
     if "pending_ai_query" not in st.session_state:
         st.session_state.pending_ai_query = None
-    if "time_range" not in st.session_state:
-        st.session_state.time_range = "Total"
+    if "time_filter_type" not in st.session_state:
+        st.session_state.time_filter_type = "Total"
+    if "selected_month" not in st.session_state:
+        st.session_state.selected_month = "December 2025"
+    if "selected_quarter" not in st.session_state:
+        st.session_state.selected_quarter = "Q4 2025"
 
     with st.spinner("Loading Enterprise Datalake..."):
         raw_data = get_cached_data()
@@ -81,7 +85,9 @@ def main():
         "city": selected_city, 
         "persona": selected_persona, 
         "role": role,
-        "time_range": st.session_state.time_range
+        "time_filter_type": st.session_state.time_filter_type,
+        "selected_month": st.session_state.selected_month,
+        "selected_quarter": st.session_state.selected_quarter
     }
     
     # Apply Filters
