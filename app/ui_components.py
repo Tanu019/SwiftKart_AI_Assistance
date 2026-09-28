@@ -145,7 +145,8 @@ def render_kpi_row_2(kpis):
     c1, c2, c3 = st.columns(3)
     with c1: st.markdown(render_kpi_card("Repeat Purchase Rate", f"{kpis.get('repeat_purchase_rate', 0):.1f}%", "🔁", "green"), unsafe_allow_html=True)
     with c2: st.markdown(render_kpi_card("Avg Churn Risk", f"{kpis.get('churn_risk_avg', 0):.1f}%", "⚠️", ""), unsafe_allow_html=True)
-    with c3: st.markdown(render_kpi_card("Customer Satisfaction", "4.2 / 5", "⭐", "purple"), unsafe_allow_html=True)
+    csat = kpis.get('customer_satisfaction', 0.0)
+    with c3: st.markdown(render_kpi_card("Customer Satisfaction", f"{csat:.1f} / 5", "⭐", "purple"), unsafe_allow_html=True)
 
 def handle_explain_with_ai(prompt):
     st.session_state.pending_ai_query = prompt
@@ -341,3 +342,60 @@ def render_data_used(dataframes):
     if 'orders' in dataframes: st.sidebar.caption(f"• **{len(dataframes['orders']):,}** Orders")
     if 'products' in dataframes: st.sidebar.caption(f"• **{len(dataframes['products']):,}** Products")
     if 'order_items' in dataframes: st.sidebar.caption(f"• **{len(dataframes['order_items']):,}** Order Items")
+
+def render_sidebar_data_section(dataframes):
+    """
+    Renders the active source data files used by the platform,
+    as well as an uploaded documents section in the left panel.
+    """
+    st.sidebar.markdown("---")
+    
+    # 1. Source Data Files Section
+    st.sidebar.markdown("### 📁 Data Source Files")
+    with st.sidebar.expander("📊 Platform Datasets", expanded=True):
+        source_meta = [
+            ("customers.csv", "👥", "customers", "1.1 MB"),
+            ("orders.csv", "📦", "orders", "14.9 MB"),
+            ("order_items.csv", "🛒", "order_items", "18.1 MB"),
+            ("products.csv", "🏷️", "products", "160 KB"),
+        ]
+        for filename, icon, key, size in source_meta:
+            if key in dataframes and not dataframes[key].empty:
+                count = len(dataframes[key])
+                st.markdown(f"""
+                <div style="padding: 7px 10px; margin-bottom: 6px; border-radius: 8px; background: rgba(128,128,128,0.08); font-size: 0.85rem; display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <strong>{icon} {filename}</strong><br>
+                        <span style="opacity: 0.7; font-size: 0.75rem;">{count:,} rows • {size}</span>
+                    </div>
+                    <span style="color: #22c55e; font-size: 0.75rem; font-weight: 600;">● Active</span>
+                </div>
+                """, unsafe_allow_html=True)
+
+    # 2. Document Upload Section
+    st.sidebar.markdown("### 📤 Uploaded Documents")
+    uploaded_files = st.sidebar.file_uploader(
+        "Upload CSV / Excel to analyze",
+        type=["csv", "xlsx", "xls", "txt"],
+        accept_multiple_files=True,
+        key="sidebar_doc_uploader"
+    )
+    
+    uploaded_dfs = {}
+    if uploaded_files:
+        import re
+        import pandas as pd
+        for f in uploaded_files:
+            try:
+                table_name = f.name.rsplit('.', 1)[0].lower()
+                table_name = re.sub(r'[^a-z0-9_]', '_', table_name)
+                if f.name.endswith('.csv') or f.name.endswith('.txt'):
+                    df = pd.read_csv(f)
+                else:
+                    df = pd.read_excel(f)
+                uploaded_dfs[table_name] = df
+                st.sidebar.success(f"✅ **{f.name}** ({df.shape[0]:,} rows)")
+            except Exception as e:
+                st.sidebar.error(f"Error reading {f.name}: {e}")
+                
+    return uploaded_dfs

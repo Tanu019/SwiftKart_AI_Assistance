@@ -12,7 +12,7 @@ st.set_page_config(page_title="SwiftKart Intelligence", page_icon="✨", layout=
 from app.data_loader import load_data
 from app.analytics import get_kpis, generate_management_briefing, generate_management_report, apply_global_filters, get_dashboard_queries
 from app.ui_components import (
-    inject_enterprise_css, render_data_used, render_executive_overview, 
+    inject_enterprise_css, render_data_used, render_sidebar_data_section, render_executive_overview, 
     initialize_chat_history, render_chat_history, render_message_bubble, render_follow_ups
 )
 from app.chat_engine import init_chat_engine, ask_assistant
@@ -42,14 +42,15 @@ def main():
         raw_data = get_cached_data()
         
     # --- SIDEBAR NAVIGATION ---
-    st.sidebar.title("SwiftKart Intelligence")
+    col_brand, col_theme = st.sidebar.columns([4, 1])
+    with col_brand:
+        st.markdown("<h2 style='margin:0; padding:0; font-size:1.35rem; font-weight:600;'>SwiftKart</h2>", unsafe_allow_html=True)
+    with col_theme:
+        theme_icon = "🌙" if st.session_state.theme == "Light" else "☀️"
+        if st.button(theme_icon, help=f"Switch to {'Dark' if st.session_state.theme == 'Light' else 'Light'} mode", key="theme_toggle_btn"):
+            st.session_state.theme = "Dark" if st.session_state.theme == "Light" else "Light"
+            st.rerun()
     st.sidebar.caption("AI-Powered Management Intelligence")
-    
-    st.sidebar.markdown("### 🎨 Appearance")
-    theme_choice = st.sidebar.radio("Theme", ["Light", "Dark"], index=0 if st.session_state.theme == "Light" else 1)
-    if theme_choice != st.session_state.theme:
-        st.session_state.theme = theme_choice
-        st.rerun()
     
     if st.session_state.current_page == "🤖 Chatbot":
         if st.sidebar.button("🔙 Back to Dashboard", use_container_width=True):
@@ -71,11 +72,15 @@ def main():
     # Apply Filters
     filtered_data = apply_global_filters(raw_data, active_filters)
     
-    render_data_used(filtered_data)
+    # Render Data Source Files and Uploaded Documents Section
+    uploaded_dfs = render_sidebar_data_section(raw_data)
     
-    # Initialize AI Engine with ALL data (engine uses SQL filters normally, but passing filtered data simplifies it if wanted. 
-    # For a real enterprise app, engine queries the database and we pass context, but here we pass filtered dataframes).
-    datalake = get_cached_engine(filtered_data) 
+    # Merge any custom uploaded datasets into engine datalake
+    engine_data = filtered_data.copy()
+    if uploaded_dfs:
+        engine_data.update(uploaded_dfs)
+        
+    datalake = get_cached_engine(engine_data) 
     
     # --- PAGE ROUTING ---
     if st.session_state.current_page == "📊 Dashboard":

@@ -8,7 +8,8 @@ def get_kpis(dataframes):
         "active_customers": 0,
         "avg_order_value": 0.0,
         "repeat_purchase_rate": 0.0,
-        "churn_risk_avg": 0.0
+        "churn_risk_avg": 0.0,
+        "customer_satisfaction": 0.0
     }
     
     orders = dataframes.get("orders")
@@ -24,15 +25,18 @@ def get_kpis(dataframes):
             kpis["avg_order_value"] = kpis["total_revenue"] / kpis["total_orders"]
             
         if 'repeat_purchase_30d' in orders.columns:
-            # percentage of orders with repeat_purchase_30d = 1
             repeat_orders = orders['repeat_purchase_30d'].sum()
             kpis["repeat_purchase_rate"] = float((repeat_orders / kpis["total_orders"]) * 100)
+            
+        if 'customer_satisfaction_score' in orders.columns:
+            kpis["customer_satisfaction"] = float(orders['customer_satisfaction_score'].mean())
             
     if customers is not None and not customers.empty:
         kpis["active_customers"] = len(customers)
         if 'churn_risk_profile' in customers.columns:
-            high_churn = len(customers[customers['churn_risk_profile'].astype(str).str.contains('High', case=False, na=False)])
-            kpis["churn_risk_avg"] = (high_churn / kpis["active_customers"]) * 100 if kpis["active_customers"] > 0 else 0.0
+            # churn_risk_profile is 1.0 - 10.0 score; convert mean to 0-100% risk percentage
+            mean_score = pd.to_numeric(customers['churn_risk_profile'], errors='coerce').mean()
+            kpis["churn_risk_avg"] = float(mean_score * 10) if pd.notnull(mean_score) else 0.0
 
     return kpis
 
@@ -96,8 +100,8 @@ def generate_management_briefing(dataframes, role="Business Head"):
     try:
         if "customers" in dataframes and "orders" in dataframes:
             try:
-                high_churn = con.execute("SELECT city, COUNT(*) as c FROM customers WHERE churn_risk_profile ILIKE '%High%' GROUP BY city ORDER BY c DESC LIMIT 1").fetchone()
-                if high_churn: briefing["needs_attention"] = f"Customer churn risk is elevated in {high_churn[0]}."
+                high_churn = con.execute("SELECT city, COUNT(*) as c FROM customers WHERE CAST(churn_risk_profile AS DOUBLE) >= 7.0 GROUP BY city ORDER BY c DESC LIMIT 1").fetchone()
+                if high_churn: briefing["needs_attention"] = f"Customer churn risk is elevated in {high_churn[0]} ({high_churn[1]:,} high-risk customers)."
             except: pass
             
             try:

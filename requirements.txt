@@ -1,5 +1,7 @@
 streamlit
 pandas
+pyarrow
+openpyxl
 duckdb
 llama-index-core
 llama-index-llms-openai-like

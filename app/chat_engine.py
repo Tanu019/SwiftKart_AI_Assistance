@@ -169,33 +169,18 @@ Question: {question}
             raise ValueError(f"SQL Execution Error: {e}\nQuery was: {sql}")
 
     def _determine_route(self, question: str, df: pd.DataFrame) -> str:
-        """Determines if the output should be TEXT, TABLE, or CHART."""
-        if df.empty:
+        """Determines if the output should be TEXT, TABLE, or CHART instantly with zero latency."""
+        if df.empty or df.shape == (1, 1):
             return "TEXT"
             
-        # If it's a single value, it must be text
-        if df.shape == (1, 1):
-            return "TEXT"
-            
-        sample = df.head(5).to_string(index=False)
+        q_lower = question.lower()
+        chart_keywords = ["chart", "graph", "plot", "trend", "visualize", "distribution", "histogram", "bar chart", "line chart", "pie chart"]
+        table_keywords = ["table", "raw data", "list all", "list of", "show records", "show data", "tabular", "dataframe", "all rows", "csv"]
         
-        prompt = f"""You are an intelligent data router for a dashboard.
-The user asked: "{question}"
-We ran a query and got data with shape {df.shape} (rows, cols).
-Sample:
-{sample}
-
-How should this data be presented? Reply with EXACTLY ONE word:
-- CHART: ONLY if the user explicitly asks for a "chart", "graph", "plot", "trend", or "visualize".
-- TABLE: ONLY if the user explicitly asked for a "list", "table", "raw data", or "all details". Do NOT return a table for analytical questions.
-- TEXT: If the user did not explicitly ask for a table or chart. This is the default for answering any analytical questions like "what factors", "why", "how", or simple facts.
-
-Choice:"""
-        response = self.llm.complete(prompt)
-        choice = str(response).strip().upper()
-        
-        if "CHART" in choice: return "CHART"
-        if "TABLE" in choice: return "TABLE"
+        if any(k in q_lower for k in chart_keywords):
+            return "CHART"
+        if any(k in q_lower for k in table_keywords):
+            return "TABLE"
         return "TEXT"
 
     def _synthesize_text(self, question: str, df: pd.DataFrame, status=None, role="Business Head"):
@@ -296,28 +281,43 @@ Rules:
             return f"⚠️ Chart generation failed: {e}"
 
     def generate_follow_ups(self, question: str, response_text: str) -> list[str]:
-        prompt = f"""{FOLLOW_UP_PROMPT}
-
-User Question: {question}
-Assistant Response: {response_text[:1000]} # Truncated for context
-"""
-        try:
-            res = self.llm.complete(prompt)
-            raw = str(res).strip()
-            # Try to safely evaluate the python list string
-            import ast
-            # Clean it up if there's markdown
-            match = re.search(r"\[.*\]", raw, flags=re.DOTALL)
-            if match:
-                raw_list = match.group(0)
-            else:
-                raw_list = raw
-            follow_ups = ast.literal_eval(raw_list)
-            if isinstance(follow_ups, list):
-                return follow_ups[:5]
-        except Exception as e:
-            pass
-        return []
+        """Provides instant high-value follow-up questions with zero API latency."""
+        q_lower = question.lower()
+        if "churn" in q_lower or "risk" in q_lower:
+            return [
+                "What is the average order frequency for high-churn customers?",
+                "Which city has the highest churn rate?",
+                "How does price sensitivity affect churn risk?",
+                "What retention campaigns are recommended for at-risk personas?"
+            ]
+        elif "revenue" in q_lower or "sales" in q_lower or "city" in q_lower or "aov" in q_lower:
+            return [
+                "Which product categories drive the highest margins?",
+                "Show monthly revenue trends across all cities.",
+                "What is the average basket value during festivals?",
+                "Compare repeat purchase rates between top 3 cities."
+            ]
+        elif "satisfaction" in q_lower or "csat" in q_lower or "rating" in q_lower or "delivery" in q_lower:
+            return [
+                "How does packing delay impact customer ratings?",
+                "What is the average delivery time by weather condition?",
+                "Which cities experience the highest delivery delays?",
+                "Does refund rate increase with delayed deliveries?"
+            ]
+        elif "product" in q_lower or "margin" in q_lower or "category" in q_lower:
+            return [
+                "Which products have high revenue but low margins?",
+                "What are the top 5 organic products by popularity?",
+                "Which categories have the highest repeat purchase rates?",
+                "Show brand distribution for top-rated products."
+            ]
+        else:
+            return [
+                "Which customer segment generates the most revenue?",
+                "Does surge fee impact order drop-offs?",
+                "What factors correlate most with repeat purchases?",
+                "Show revenue breakdown by payment method."
+            ]
 
     def query(self, question: str, history_list: list = None, status=None, role: str = "Business Head"):
         """Main routing execution with caching, memory, and self-healing."""
