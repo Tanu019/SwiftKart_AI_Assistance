@@ -111,7 +111,7 @@ def plot_churn_by_persona(df):
         x=df['persona'],
         y=df['avg_churn'],
         marker=dict(
-            color='#334155',
+            color='#3b82f6',
             line=dict(color='rgba(255,255,255,0)', width=0)
         ),
         hovertemplate='<b>%{x}</b><br>Avg Churn: %{y:.1f}%<extra></extra>'

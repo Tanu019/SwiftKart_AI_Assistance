@@ -97,17 +97,23 @@ class DuckDBEngine:
         
         self.schema_lines = ["Available Tables (DuckDB Dialect):"]
         
-        # Register each dataframe as a table in DuckDB
+        self.registered_names = set()
+        self.register_tables(dataframes)
+
+    def register_tables(self, dataframes: dict[str, pd.DataFrame]):
+        """Registers or updates tables in DuckDB and expands schema context."""
         for name, df in dataframes.items():
-            self.con.register(name, df)
-            desc = _DF_DESCRIPTIONS.get(name, f"{name} table")
-            self.schema_lines.append(f"  • {desc}")
-            
-            # Add a sample row so the LLM knows exact data types and formats
             if not df.empty:
-                sample_row = df.head(1).to_dict(orient="records")[0]
-                self.schema_lines.append(f"    Sample Row: {sample_row}")
-            
+                self.con.register(name, df)
+                if name not in self.registered_names:
+                    self.registered_names.add(name)
+                    desc = _DF_DESCRIPTIONS.get(name, f"{name} table — columns: {', '.join(df.columns.astype(str))}")
+                    self.schema_lines.append(f"  • {desc}")
+                    try:
+                        sample_row = df.head(1).to_dict(orient="records")[0]
+                        self.schema_lines.append(f"    Sample Row: {sample_row}")
+                    except Exception:
+                        pass
         self.schema_context = "\n".join(self.schema_lines)
 
     def _generate_sql(self, question: str, history: str = "", error_msg: str = "", role: str = "Business Head") -> str:

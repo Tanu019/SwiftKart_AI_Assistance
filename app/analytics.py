@@ -24,11 +24,11 @@ def get_kpis(dataframes):
         if kpis["total_orders"] > 0:
             kpis["avg_order_value"] = kpis["total_revenue"] / kpis["total_orders"]
             
-        if 'repeat_purchase_30d' in orders.columns:
+        if 'repeat_purchase_30d' in orders.columns and kpis["total_orders"] > 0:
             repeat_orders = orders['repeat_purchase_30d'].sum()
             kpis["repeat_purchase_rate"] = float((repeat_orders / kpis["total_orders"]) * 100)
             
-        if 'customer_satisfaction_score' in orders.columns:
+        if 'customer_satisfaction_score' in orders.columns and kpis["total_orders"] > 0:
             kpis["customer_satisfaction"] = float(orders['customer_satisfaction_score'].mean())
             
     if customers is not None and not customers.empty:
@@ -180,9 +180,9 @@ def get_dashboard_queries(dataframes, section):
                     results["persona_dist"] = con.execute("SELECT persona, COUNT(*) as count FROM customers GROUP BY persona ORDER BY count DESC").df()
                 except: pass
                 
-            if "customers" in dataframes and "orders" in dataframes:
+            if "customers" in dataframes:
                 try:
-                    results["churn_by_persona"] = con.execute("SELECT c.persona, AVG(o.churn_risk_score) as avg_churn FROM customers c JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.persona ORDER BY avg_churn DESC").df()
+                    results["churn_by_persona"] = con.execute("SELECT persona, AVG(CAST(churn_risk_profile AS DOUBLE)) * 10 as avg_churn FROM customers GROUP BY persona ORDER BY avg_churn DESC").df()
                 except: pass
                 
             if "products" in dataframes and "order_items" in dataframes:

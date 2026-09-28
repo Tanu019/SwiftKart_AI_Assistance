@@ -96,12 +96,9 @@ def main():
     # Render Data Source Files and Uploaded Documents Section
     uploaded_dfs = render_sidebar_data_section(raw_data)
     
-    # Merge any custom uploaded datasets into engine datalake
-    engine_data = filtered_data.copy()
-    if uploaded_dfs:
-        engine_data.update(uploaded_dfs)
-        
-    datalake = get_cached_engine(engine_data) 
+    datalake = get_cached_engine(raw_data)
+    if datalake and uploaded_dfs:
+        datalake.register_tables(uploaded_dfs) 
     
     # --- PAGE ROUTING ---
     if st.session_state.current_page == "📊 Dashboard":
