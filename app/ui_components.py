@@ -49,12 +49,32 @@ def inject_enterprise_css(theme):
 
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&family=Material+Icons&display=swap');
         
         /* Global Reset & Body Typography (Manrope) */
-        html, body, .stApp, [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li, [data-testid="stText"] {{ 
+        html, body, .stApp {{ 
             font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; 
             color: {text_color} !important; 
+        }}
+        
+        /* Strict Protection for Streamlit Material Symbols / Icons */
+        [data-testid="stIconMaterial"],
+        .material-symbols-rounded,
+        .material-symbols-outlined,
+        .material-icons,
+        span[data-testid="stIconMaterial"],
+        [data-testid="stExpander"] span[data-testid="stIconMaterial"],
+        [data-testid="stFileUploader"] span[data-testid="stIconMaterial"],
+        [data-testid="stSidebar"] span[data-testid="stIconMaterial"] {{
+            font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
+            font-feature-settings: 'liga' 1 !important;
+            -webkit-font-feature-settings: 'liga' 1 !important;
+            letter-spacing: normal !important;
+            text-transform: none !important;
+            display: inline-block !important;
+            white-space: nowrap !important;
+            word-wrap: normal !important;
+            direction: ltr !important;
         }}
         
         /* Clean Sidebar Layout & Hide Raw Collapse Ligature Text */
@@ -83,7 +103,8 @@ def inject_enterprise_css(theme):
         }}
         [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p, 
         [data-testid="stSidebar"] label,
-        [data-testid="stSidebar"] span {{ 
+        [data-testid="stSidebar"] .stCaption,
+        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] {{ 
             color: {text_color} !important; 
             font-family: 'Manrope', sans-serif !important;
         }}
