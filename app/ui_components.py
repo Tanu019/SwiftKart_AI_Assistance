@@ -49,7 +49,7 @@ def inject_enterprise_css(theme):
 
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&family=Material+Icons&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Newsreader:wght@600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
         
         /* Global Reset & Body Typography (Manrope) */
         html, body, .stApp {{ 

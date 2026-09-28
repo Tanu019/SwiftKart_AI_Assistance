@@ -39,7 +39,13 @@ def load_data():
         dataframes["products"] = pd.DataFrame()
         
     try:
-        dataframes["orders"] = _read_csv_fast(files["orders"])
+        df_orders = _read_csv_fast(files["orders"])
+        if not df_orders.empty and "order_timestamp" in df_orders.columns:
+            ts = pd.to_datetime(df_orders["order_timestamp"], errors="coerce")
+            df_orders["_dt"] = ts.dt.date
+            df_orders["order_month"] = ts.dt.strftime("%B %Y")
+            df_orders["order_quarter"] = "Q" + ts.dt.quarter.astype(str) + " " + ts.dt.year.astype(str)
+        dataframes["orders"] = df_orders
     except FileNotFoundError:
         st.warning("orders.csv not found.")
         dataframes["orders"] = pd.DataFrame()

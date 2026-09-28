@@ -71,33 +71,36 @@ def apply_global_filters(dataframes, filters):
             filtered[name] = df
             continue
             
-        f_df = df.copy()
+        f_df = df
         
-        # Apply City filter (assuming orders and customers have 'city')
+        # Apply City filter
         if filters.get("city") and "city" in f_df.columns:
             if filters["city"] != "All":
                 f_df = f_df[f_df["city"] == filters["city"]]
                 
-        # Apply Persona filter (only on customers for now, or join if needed)
+        # Apply Persona filter
         if filters.get("persona") and "persona" in f_df.columns:
             if filters["persona"] != "All":
                 f_df = f_df[f_df["persona"] == filters["persona"]]
                 
-        # Apply Time filter (Specific Month or Quarter or Total)
-        if name == "orders" and "order_timestamp" in f_df.columns:
+        # Apply Time filter (Instant using precomputed columns)
+        if name == "orders":
             time_filter_type = filters.get("time_filter_type", "Total")
-            temp_dt = pd.to_datetime(f_df["order_timestamp"], errors="coerce")
             
-            if time_filter_type == "Month" and filters.get("selected_month"):
+            if time_filter_type == "Month" and filters.get("selected_month") and filters["selected_month"] != "All Months":
                 month_val = filters["selected_month"]
-                if month_val != "All Months":
-                    month_str = temp_dt.dt.strftime("%B %Y")
-                    f_df = f_df[month_str == month_val]
-            elif time_filter_type == "Quarter" and filters.get("selected_quarter"):
+                if "order_month" in f_df.columns:
+                    f_df = f_df[f_df["order_month"] == month_val]
+                elif "order_timestamp" in f_df.columns:
+                    f_df = f_df[pd.to_datetime(f_df["order_timestamp"], errors="coerce").dt.strftime("%B %Y") == month_val]
+                    
+            elif time_filter_type == "Quarter" and filters.get("selected_quarter") and filters["selected_quarter"] != "All Quarters":
                 q_val = filters["selected_quarter"]
-                if q_val != "All Quarters":
-                    q_str = "Q" + temp_dt.dt.quarter.astype(str) + " " + temp_dt.dt.year.astype(str)
-                    f_df = f_df[q_str == q_val]
+                if "order_quarter" in f_df.columns:
+                    f_df = f_df[f_df["order_quarter"] == q_val]
+                elif "order_timestamp" in f_df.columns:
+                    dt = pd.to_datetime(f_df["order_timestamp"], errors="coerce")
+                    f_df = f_df[("Q" + dt.dt.quarter.astype(str) + " " + dt.dt.year.astype(str)) == q_val]
                 
         filtered[name] = f_df
         
@@ -115,26 +118,32 @@ def generate_management_briefing(dataframes, role="Business Head"):
         "positive": "Overall operations are stable.",
         "priority": "Continue executing on current plan."
     }
-    con = duckdb.connect(database=':memory:')
-    for name, df in dataframes.items():
-        con.register(name, df)
+    
+    customers = dataframes.get("customers")
+    orders = dataframes.get("orders")
+    
     try:
-        if "customers" in dataframes and "orders" in dataframes:
-            try:
-                high_churn = con.execute("SELECT city, COUNT(*) as c FROM customers WHERE CAST(churn_risk_profile AS DOUBLE) >= 7.0 GROUP BY city ORDER BY c DESC LIMIT 1").fetchone()
-                if high_churn: briefing["needs_attention"] = f"Customer churn risk is elevated in {high_churn[0]} ({high_churn[1]:,} high-risk customers)."
-            except: pass
-            
-            try:
-                low_rep = con.execute("SELECT city, AVG(repeat_purchase_30d) as r FROM orders GROUP BY city ORDER BY r ASC LIMIT 1").fetchone()
-                if low_rep: briefing["watch"] = f"Repeat purchase rates are underperforming in {low_rep[0]}."
-            except: pass
-            
-            try:
-                hi_aov = con.execute("SELECT city, AVG(basket_value) as a FROM orders GROUP BY city ORDER BY a DESC LIMIT 1").fetchone()
-                if hi_aov: briefing["positive"] = f"Average order value is strong in {hi_aov[0]} at {format_currency(hi_aov[1])}."
-            except: pass
-    except: pass
+        if customers is not None and not customers.empty and "city" in customers.columns and "churn_risk_profile" in customers.columns:
+            high_churn_df = customers[pd.to_numeric(customers['churn_risk_profile'], errors='coerce') >= 7.0]
+            if not high_churn_df.empty:
+                top_churn_city = high_churn_df['city'].value_counts()
+                if not top_churn_city.empty:
+                    city_name, count = top_churn_city.index[0], top_churn_city.iloc[0]
+                    briefing["needs_attention"] = f"Customer churn risk is elevated in {city_name} ({count:,} high-risk customers)."
+
+        if orders is not None and not orders.empty and "city" in orders.columns:
+            if "repeat_purchase_30d" in orders.columns:
+                rep_by_city = orders.groupby("city")["repeat_purchase_30d"].mean().sort_values()
+                if not rep_by_city.empty:
+                    briefing["watch"] = f"Repeat purchase rates are underperforming in {rep_by_city.index[0]}."
+                    
+            if "basket_value" in orders.columns:
+                aov_by_city = orders.groupby("city")["basket_value"].mean().sort_values(ascending=False)
+                if not aov_by_city.empty:
+                    briefing["positive"] = f"Average order value is strong in {aov_by_city.index[0]} at {format_currency(aov_by_city.iloc[0])}."
+    except Exception:
+        pass
+        
     return briefing
 
 def generate_management_report(dataframes):
@@ -151,46 +160,75 @@ SwiftKart AI Management Report. Active customers: {format_number(kpis['active_cu
 """
     return report
 
-def get_dashboard_queries(dataframes, section):
+def get_dashboard_queries(dataframes, section="executive"):
     """
-    Runs rapid DuckDB aggregations for various dashboard charts.
+    Runs ultra-fast in-memory vectorized aggregations for all dashboard charts.
     """
-    con = duckdb.connect(database=':memory:')
-    for name, df in dataframes.items():
-        con.register(name, df)
-        
     results = {}
+    orders = dataframes.get("orders")
+    customers = dataframes.get("customers")
+    products = dataframes.get("products")
+    order_items = dataframes.get("order_items")
+    
     try:
-        if section == "executive":
-            if "orders" in dataframes:
-                try:
-                    results["revenue_by_city"] = con.execute("SELECT city, SUM(basket_value) as revenue FROM orders GROUP BY city ORDER BY revenue DESC").df()
-                except: pass
+        if orders is not None and not orders.empty:
+            if "city" in orders.columns and "basket_value" in orders.columns:
+                results["revenue_by_city"] = (
+                    orders.groupby("city", as_index=False)["basket_value"]
+                    .sum()
+                    .rename(columns={"basket_value": "revenue"})
+                    .sort_values("revenue", ascending=False)
+                )
                 
-                try:
-                    results["orders_trend"] = con.execute("SELECT CAST(order_timestamp AS DATE) as dt, COUNT(order_id) as orders, SUM(basket_value) as revenue FROM orders GROUP BY CAST(order_timestamp AS DATE) ORDER BY dt").df()
-                except: pass
+            if "basket_value" in orders.columns:
+                date_col = "_dt" if "_dt" in orders.columns else "order_timestamp"
+                trend_df = (
+                    orders.groupby(date_col, as_index=False)
+                    .agg(orders=("order_id", "count"), revenue=("basket_value", "sum"))
+                    .rename(columns={date_col: "dt"})
+                    .sort_values("dt")
+                )
+                results["orders_trend"] = trend_df
                 
-                try:
-                    results["delivery_vs_sat"] = con.execute("SELECT ROUND(delivery_time_minutes / 10) * 10 as delivery_bucket, AVG(customer_satisfaction_score) as avg_sat FROM orders GROUP BY delivery_bucket ORDER BY delivery_bucket").df()
-                except: pass
+            if "delivery_time_minutes" in orders.columns and "customer_satisfaction_score" in orders.columns:
+                del_bucket = (orders["delivery_time_minutes"] // 10) * 10
+                sat_df = (
+                    orders.assign(delivery_bucket=del_bucket)
+                    .groupby("delivery_bucket", as_index=False)["customer_satisfaction_score"]
+                    .mean()
+                    .rename(columns={"customer_satisfaction_score": "avg_sat"})
+                    .sort_values("delivery_bucket")
+                )
+                results["delivery_vs_sat"] = sat_df
                 
-            if "customers" in dataframes:
-                try:
-                    results["persona_dist"] = con.execute("SELECT persona, COUNT(*) as count FROM customers GROUP BY persona ORDER BY count DESC").df()
-                except: pass
+        if customers is not None and not customers.empty:
+            if "persona" in customers.columns:
+                p_counts = customers["persona"].value_counts().reset_index()
+                p_counts.columns = ["persona", "count"]
+                results["persona_dist"] = p_counts
                 
-            if "customers" in dataframes:
-                try:
-                    results["churn_by_persona"] = con.execute("SELECT persona, AVG(CAST(churn_risk_profile AS DOUBLE)) * 10 as avg_churn FROM customers GROUP BY persona ORDER BY avg_churn DESC").df()
-                except: pass
+            if "persona" in customers.columns and "churn_risk_profile" in customers.columns:
+                churn_df = (
+                    customers.assign(churn_num=pd.to_numeric(customers["churn_risk_profile"], errors="coerce") * 10)
+                    .groupby("persona", as_index=False)["churn_num"]
+                    .mean()
+                    .rename(columns={"churn_num": "avg_churn"})
+                    .sort_values("avg_churn", ascending=False)
+                )
+                results["churn_by_persona"] = churn_df
                 
-            if "products" in dataframes and "order_items" in dataframes:
-                try:
-                    results["cat_revenue"] = con.execute("SELECT p.category, SUM(oi.final_price) as revenue FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category ORDER BY revenue DESC").df()
-                except: pass
+        if products is not None and order_items is not None and not products.empty and not order_items.empty:
+            if "product_id" in products.columns and "product_id" in order_items.columns:
+                merged = order_items.merge(products[["product_id", "category"]], on="product_id", how="inner")
+                cat_rev = (
+                    merged.groupby("category", as_index=False)["final_price"]
+                    .sum()
+                    .rename(columns={"final_price": "revenue"})
+                    .sort_values("revenue", ascending=False)
+                )
+                results["cat_revenue"] = cat_rev
                 
     except Exception as e:
-        print(f"DuckDB error in get_dashboard_queries: {e}")
+        print(f"Error in get_dashboard_queries: {e}")
         
     return results
