@@ -399,7 +399,9 @@ def init_chat_engine(dataframes: dict) -> DuckDBEngine | None:
     return DuckDBEngine(dataframes=valid, llm=llm)
 
 
-def ask_assistant(engine: DuckDBEngine, query: str, history: list = None, status=None, role: str = "Business Head"):
+def ask_assistant(engine: DuckDBEngine | None, query: str, history: list | None = None, status=None, role: str = "Business Head"):
     """Send a question to the engine with optional history and status."""
+    if engine is None:
+        return "⚠️ AI Assistant Engine is offline. Please check your GROQ_API_KEY in the .env file."
     return engine.query(query, history, status, role)
 

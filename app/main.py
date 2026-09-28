@@ -121,20 +121,29 @@ def main():
         if st.session_state.messages and st.session_state.messages[-1]["role"] == "user":
             last_prompt = st.session_state.messages[-1]["content"]
             history = st.session_state.messages[:-1]
+            role_str = str(role) if role is not None else "Business Head"
+            
+            if datalake is None:
+                st.session_state.messages.append({
+                    "role": "assistant", 
+                    "content": "⚠️ AI Assistant Engine is offline. Please check your GROQ_API_KEY in the .env file.", 
+                    "type": "text"
+                })
+                st.rerun()
             
             with st.spinner("Analyzing business data..."):
-                response = ask_assistant(datalake, last_prompt, history, role=role)
+                response = ask_assistant(datalake, last_prompt, history, role=role_str)
                 
                 import plotly.graph_objects as go
                 import types
                 
                 if isinstance(response, pd.DataFrame): 
                     st.session_state.messages.append({"role": "assistant", "content": response, "type": "table"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Table output")
+                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Table output") if datalake else []
                     st.rerun()
                 elif isinstance(response, go.Figure):
                     st.session_state.messages.append({"role": "assistant", "content": response, "type": "chart"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Chart output")
+                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Chart output") if datalake else []
                     st.rerun()
                 elif isinstance(response, types.GeneratorType):
                     placeholder = st.empty()
@@ -149,11 +158,11 @@ def main():
                         with placeholder.container():
                             render_message_bubble("assistant", full_response)
                     st.session_state.messages.append({"role": "assistant", "content": full_response, "type": "text"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, full_response)
+                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, full_response) if datalake else []
                     st.rerun()
                 else:
                     st.session_state.messages.append({"role": "assistant", "content": str(response), "type": "text"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, str(response))
+                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, str(response)) if datalake else []
                     st.rerun()
 
 if __name__ == "__main__":
