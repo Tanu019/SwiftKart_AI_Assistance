@@ -13,7 +13,7 @@ from app.data_loader import load_data
 from app.analytics import get_kpis, generate_management_briefing, generate_management_report, apply_global_filters, get_dashboard_queries
 from app.ui_components import (
     inject_enterprise_css, render_sidebar_data_section, render_executive_overview, 
-    initialize_chat_history, render_chat_history, render_message_bubble, render_follow_ups
+    initialize_chat_history, render_chat_history, render_message_bubble, render_thinking_bubble, render_follow_ups
 )
 from app.chat_engine import init_chat_engine, ask_assistant
 
@@ -144,39 +144,45 @@ def main():
                 })
                 st.rerun()
             
-            with st.spinner("Analyzing business data..."):
-                response = ask_assistant(datalake, last_prompt, history, role=role_str)
-                
-                import plotly.graph_objects as go
-                import types
-                
-                if isinstance(response, pd.DataFrame): 
-                    st.session_state.messages.append({"role": "assistant", "content": response, "type": "table"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Table output") if datalake else []
-                    st.rerun()
-                elif isinstance(response, go.Figure):
-                    st.session_state.messages.append({"role": "assistant", "content": response, "type": "chart"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Chart output") if datalake else []
-                    st.rerun()
-                elif isinstance(response, types.GeneratorType):
-                    placeholder = st.empty()
-                    full_response = ""
-                    try:
-                        for chunk in response:
-                            full_response += chunk
-                            with placeholder.container():
-                                render_message_bubble("assistant", full_response)
-                    except Exception as e:
-                        full_response = f"⚠️ Analysis failed: {e}"
+            # Immediately show animated thinking indicator while analyzing data
+            placeholder = st.empty()
+            with placeholder.container():
+                render_thinking_bubble("Analyzing enterprise data & synthesizing insights...")
+            
+            response = ask_assistant(datalake, last_prompt, history, role=role_str)
+            
+            import plotly.graph_objects as go
+            import types
+            
+            if isinstance(response, pd.DataFrame): 
+                placeholder.empty()
+                st.session_state.messages.append({"role": "assistant", "content": response, "type": "table"})
+                st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Table output") if datalake else []
+                st.rerun()
+            elif isinstance(response, go.Figure):
+                placeholder.empty()
+                st.session_state.messages.append({"role": "assistant", "content": response, "type": "chart"})
+                st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, "Chart output") if datalake else []
+                st.rerun()
+            elif isinstance(response, types.GeneratorType):
+                full_response = ""
+                try:
+                    for chunk in response:
+                        full_response += chunk
                         with placeholder.container():
                             render_message_bubble("assistant", full_response)
-                    st.session_state.messages.append({"role": "assistant", "content": full_response, "type": "text"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, full_response) if datalake else []
-                    st.rerun()
-                else:
-                    st.session_state.messages.append({"role": "assistant", "content": str(response), "type": "text"})
-                    st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, str(response)) if datalake else []
-                    st.rerun()
+                except Exception as e:
+                    full_response = f"⚠️ Analysis failed: {e}"
+                    with placeholder.container():
+                        render_message_bubble("assistant", full_response)
+                st.session_state.messages.append({"role": "assistant", "content": full_response, "type": "text"})
+                st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, full_response) if datalake else []
+                st.rerun()
+            else:
+                placeholder.empty()
+                st.session_state.messages.append({"role": "assistant", "content": str(response), "type": "text"})
+                st.session_state.follow_ups = datalake.generate_follow_ups(last_prompt, str(response)) if datalake else []
+                st.rerun()
 
 if __name__ == "__main__":
     main()

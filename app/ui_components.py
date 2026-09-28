@@ -208,6 +208,17 @@ def inject_enterprise_css(theme):
             font-weight: 600; 
         }}
         
+        @keyframes pulse-dot {
+            0% { opacity: 0.3; transform: scale(0.92); }
+            50% { opacity: 1; transform: scale(1.12); }
+            100% { opacity: 0.3; transform: scale(0.92); }
+        }
+        .analyzing-pulse {
+            animation: pulse-dot 1.2s ease-in-out infinite;
+            display: inline-block;
+            font-size: 16px;
+        }
+        
         /* Hide streamlit modebar clutter */
         .modebar {{ display: none !important; }}
     </style>
@@ -224,6 +235,32 @@ def render_kpi_card(title, value):
         <div class='kpi-value'>{value}</div>
     </div>
     """
+
+def render_thinking_bubble(text="Analyzing data & synthesizing management insights..."):
+    """
+    Renders an animated thinking state inside the chat while the response is being analyzed.
+    """
+    html = f"""
+    <div class='enterprise-message-container assistant'>
+        <div class='enterprise-bubble' style='display: flex; align-items: center; gap: 10px; font-style: italic; opacity: 0.85;'>
+            <span class='analyzing-pulse'>✨</span>
+            <span>{text}</span>
+        </div>
+    </div>
+    """
+    st.markdown(html, unsafe_allow_html=True)
+
+def render_message_bubble(role, content_text):
+    if role == "user":
+        html = f"<div class='enterprise-message-container user'><div class='enterprise-bubble'>{content_text}</div></div>"
+    else:
+        import html as html_lib
+        import re
+        safe_content = html_lib.escape(content_text).replace('\n', '<br>')
+        safe_content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', safe_content)
+        safe_content = re.sub(r'### (.*?)(<br>|$)', r'<h3>\1</h3>\2', safe_content)
+        html = f"<div class='enterprise-message-container assistant'><div class='enterprise-bubble'>{safe_content}</div></div>"
+    st.markdown(html, unsafe_allow_html=True)
 
 def render_kpi_row(kpis):
     c1, c2, c3, c4 = st.columns(4)
