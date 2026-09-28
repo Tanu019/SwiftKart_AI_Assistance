@@ -49,12 +49,22 @@ def inject_enterprise_css(theme):
 
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap');
         
         /* Global Reset & Body Typography (Manrope) */
-        html, body, [class*="css"] {{ 
+        html, body, .stApp, [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li, [data-testid="stText"] {{ 
             font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; 
             color: {text_color} !important; 
+        }}
+        
+        /* Protect Streamlit Material Icons from font overrides */
+        [data-testid="stIconMaterial"], 
+        .material-symbols-rounded, 
+        .material-icons, 
+        [data-testid="stSidebarCollapseButton"] span,
+        [data-testid="stHeader"] span,
+        [data-testid="stIconMaterial"] * {{
+            font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
         }}
         
         /* App Canvas */
