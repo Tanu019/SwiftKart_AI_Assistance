@@ -7,23 +7,25 @@ from app.visualizations import (
 
 def inject_enterprise_css(theme):
     if theme == "Light":
-        bg_color = "#F0EFEA"
-        sidebar_bg = "#FAF9F6"
-        text_color = "#090F15"
-        subtext_color = "#6C6D74"
+        bg_color = "#F8FAFC"
+        sidebar_bg = "#FFFFFF"
+        text_color = "#0F172A"
+        subtext_color = "#475569"
         card_bg = "#FFFFFF"
-        border_color = "#D8D6D0"
-        shadow_card = "0 1px 3px rgba(9, 15, 21, 0.05), 0 8px 16px -4px rgba(9, 15, 21, 0.03)"
-        shadow_hover = "0 4px 20px -2px rgba(9, 15, 21, 0.08)"
-        user_bubble = "#E5E3DE"
+        border_color = "#E2E8F0"
+        shadow_card = "0 1px 3px rgba(15, 23, 42, 0.06), 0 6px 16px -2px rgba(15, 23, 42, 0.04)"
+        shadow_hover = "0 4px 20px -2px rgba(15, 23, 42, 0.10)"
+        user_bubble = "#F1F5F9"
         assistant_bubble = "#FFFFFF"
-        kpi_value_color = "#090F15"
+        kpi_value_color = "#0F172A"
         chat_input_bg = "#FFFFFF"
-        chat_border = "#D3D1CE"
-        accent_button = "#E5E3DE"
-        accent_button_hover = "#D3D1CE"
-        button_text = "#090F15"
-        primary_accent = "#6366F1"
+        chat_border = "#CBD5E1"
+        accent_button = "#F1F5F9"
+        accent_button_hover = "#E2E8F0"
+        button_text = "#0F172A"
+        primary_btn_bg = "#0F172A"
+        primary_btn_text = "#FFFFFF"
+        alert_text = "#0F172A"
     else: # Dark (Alpine Twilight)
         bg_color = "#090F15"
         sidebar_bg = "#0D141C"
@@ -41,7 +43,9 @@ def inject_enterprise_css(theme):
         accent_button = "#18222E"
         accent_button_hover = "#233140"
         button_text = "#D3D1CE"
-        primary_accent = "#7C83FD"
+        primary_btn_bg = "#D3D1CE"
+        primary_btn_text = "#090F15"
+        alert_text = "#D3D1CE"
 
     st.markdown(f"""
     <style>
@@ -55,7 +59,7 @@ def inject_enterprise_css(theme):
         
         /* App Canvas */
         .stApp {{ 
-            background-color: {bg_color}; 
+            background-color: {bg_color} !important; 
         }}
         .block-container {{ 
             padding-top: 1.5rem !important; 
@@ -66,88 +70,78 @@ def inject_enterprise_css(theme):
             background-color: transparent !important; 
         }}
         
-        /* Sidebar Alpine Twilight Styling */
+        /* Sidebar Styling */
         [data-testid="stSidebar"] {{ 
             background-color: {sidebar_bg} !important; 
-            border-right: 1px solid {border_color}; 
+            border-right: 1px solid {border_color} !important; 
         }}
         [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p, 
-        [data-testid="stSidebar"] label {{ 
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] span {{ 
             color: {text_color} !important; 
             font-family: 'Manrope', sans-serif !important;
         }}
         
-        /* Form Inputs & Dropdowns (Alpine Twilight) */
+        /* Form Inputs & Dropdowns */
         div[data-baseweb="select"] > div {{
             background-color: {card_bg} !important;
             border: 1px solid {border_color} !important;
             color: {text_color} !important;
             border-radius: 10px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06);
             font-family: 'Manrope', sans-serif !important;
         }}
+        div[data-baseweb="select"] * {{
+            color: {text_color} !important;
+        }}
         
-        /* Dashboard Headers (Newsreader Editorial Serif) */
+        /* Dashboard Headers */
         .dashboard-header-title {{
             font-family: 'Newsreader', Georgia, 'Times New Roman', serif !important;
-            font-size: 2.35rem;
-            font-weight: 600;
-            color: {kpi_value_color};
+            font-size: 2.45rem !important;
+            font-weight: 600 !important;
+            color: {kpi_value_color} !important;
             letter-spacing: -0.01em;
             margin: 0;
             padding: 0;
         }}
         .dashboard-header-subtitle {{
             font-family: 'Manrope', sans-serif !important;
-            font-size: 0.95rem;
-            color: {subtext_color};
+            font-size: 0.95rem !important;
+            color: {subtext_color} !important;
             margin-top: 0.2rem;
             font-weight: 400;
             letter-spacing: 0.2px;
         }}
         
-        /* Top Navigation Filter Pills */
-        .filter-pill {{
-            background: {accent_button};
-            color: {button_text};
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 500;
-            border: 1px solid {border_color};
-            display: inline-block;
-            font-family: 'Manrope', sans-serif !important;
-        }}
-        
-        /* KPI Cards (Alpine Twilight Minimalist) */
+        /* KPI Cards */
         .kpi-card {{ 
-            background: {card_bg}; 
+            background: {card_bg} !important; 
             padding: 20px 22px; 
             border-radius: 14px; 
             text-align: left; 
-            border: 1px solid {border_color};
+            border: 1px solid {border_color} !important;
             box-shadow: {shadow_card};
             transition: all 0.2s ease;
         }}
         .kpi-card:hover {{
             box-shadow: {shadow_hover};
-            border-color: rgba(211, 209, 206, 0.25);
             transform: translateY(-2px);
         }}
         .kpi-label {{ 
             font-family: 'Manrope', sans-serif !important;
-            font-size: 11px; 
-            font-weight: 600; 
-            color: {subtext_color}; 
+            font-size: 11.5px !important; 
+            font-weight: 600 !important; 
+            color: {subtext_color} !important; 
             text-transform: uppercase; 
             letter-spacing: 0.8px; 
             margin-bottom: 8px;
         }}
         .kpi-value {{ 
             font-family: 'Manrope', sans-serif !important;
-            font-size: 28px; 
-            font-weight: 700; 
-            color: {kpi_value_color}; 
+            font-size: 28px !important; 
+            font-weight: 700 !important; 
+            color: {kpi_value_color} !important; 
             letter-spacing: -0.5px; 
             margin: 0;
             line-height: 1.1;
@@ -155,8 +149,8 @@ def inject_enterprise_css(theme):
         
         /* Chart Card Containers */
         .chart-card-container {{
-            background: {card_bg};
-            border: 1px solid {border_color};
+            background: {card_bg} !important;
+            border: 1px solid {border_color} !important;
             border-radius: 16px;
             padding: 18px 20px;
             box-shadow: {shadow_card};
@@ -164,15 +158,15 @@ def inject_enterprise_css(theme):
         }}
         .chart-title-text {{
             font-family: 'Newsreader', Georgia, serif !important;
-            font-size: 17px;
-            font-weight: 600;
-            color: {kpi_value_color};
+            font-size: 17.5px !important;
+            font-weight: 600 !important;
+            color: {kpi_value_color} !important;
             letter-spacing: 0.1px;
         }}
         
-        /* Alpine Twilight Buttons */
+        /* Buttons Styling (Clean & High Contrast) */
         div.stButton > button {{
-            background: {accent_button} !important;
+            background-color: {accent_button} !important;
             color: {button_text} !important;
             border: 1px solid {border_color} !important;
             border-radius: 10px !important;
@@ -181,18 +175,39 @@ def inject_enterprise_css(theme):
             font-weight: 600 !important;
             font-family: 'Manrope', sans-serif !important;
             transition: all 0.2s ease !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.08) !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.06) !important;
+        }}
+        div.stButton > button p, 
+        div.stButton > button span {{
+            color: {button_text} !important;
         }}
         div.stButton > button:hover {{
-            background: {accent_button_hover} !important;
-            border-color: {text_color} !important;
+            background-color: {accent_button_hover} !important;
+            border-color: {subtext_color} !important;
             transform: translateY(-1px) !important;
         }}
-        div.stButton > button[kind="primary"] {{
-            background: {kpi_value_color} !important;
-            color: {bg_color} !important;
-            border: 1px solid {kpi_value_color} !important;
+        div.stButton > button[kind="primary"],
+        div.stButton > button[data-testid="baseButton-primary"] {{
+            background-color: {primary_btn_bg} !important;
+            color: {primary_btn_text} !important;
+            border: 1px solid {primary_btn_bg} !important;
             font-weight: 700 !important;
+        }}
+        div.stButton > button[kind="primary"] p, 
+        div.stButton > button[kind="primary"] span,
+        div.stButton > button[data-testid="baseButton-primary"] p,
+        div.stButton > button[data-testid="baseButton-primary"] span {{
+            color: {primary_btn_text} !important;
+        }}
+        
+        /* Streamlit Alerts / Callouts High Contrast */
+        [data-testid="stAlert"] {{
+            border-radius: 10px !important;
+            font-family: 'Manrope', sans-serif !important;
+        }}
+        [data-testid="stAlert"] p,
+        [data-testid="stAlert"] strong {{
+            color: {alert_text} !important;
         }}
         
         /* Chat UI Styling */
@@ -224,7 +239,7 @@ def inject_enterprise_css(theme):
             margin-top: 0; 
             margin-bottom: 8px; 
             font-size: 17px; 
-            color: {kpi_value_color}; 
+            color: {kpi_value_color} !important; 
             font-weight: 600; 
         }}
         
@@ -241,7 +256,6 @@ def inject_enterprise_css(theme):
         
         /* Hide streamlit modebar clutter */
         .modebar {{ display: none !important; }}
-    </style>
     """, unsafe_allow_html=True)
 
 
