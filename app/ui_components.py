@@ -57,14 +57,10 @@ def inject_enterprise_css(theme):
             color: {text_color} !important; 
         }}
         
-        /* Protect Streamlit Material Icons from font overrides */
-        [data-testid="stIconMaterial"], 
-        .material-symbols-rounded, 
-        .material-icons, 
-        [data-testid="stSidebarCollapseButton"] span,
-        [data-testid="stHeader"] span,
-        [data-testid="stIconMaterial"] * {{
-            font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
+        /* Clean Sidebar Layout & Hide Raw Collapse Ligature Text */
+        [data-testid="stSidebarCollapseButton"], 
+        [data-testid="collapsedControl"] {{
+            display: none !important;
         }}
         
         /* App Canvas */

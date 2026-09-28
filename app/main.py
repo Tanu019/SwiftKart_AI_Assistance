@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Set page config
-st.set_page_config(page_title="SwiftKart Intelligence", page_icon="✨", layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(page_title="SwiftKart Intelligence", page_icon="✨", layout="wide", initial_sidebar_state="expanded")
 
 from app.data_loader import load_data
 from app.analytics import get_kpis, generate_management_briefing, generate_management_report, apply_global_filters, get_dashboard_queries
