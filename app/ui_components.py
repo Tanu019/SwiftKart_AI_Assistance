@@ -113,17 +113,15 @@ def inject_enterprise_css(theme):
             display: inline-block;
         }}
         
-        /* KPI Cards (Clean SaaS Design with Sparkline) */
+        /* KPI Cards (Minimalist Clean Design) */
         .kpi-card {{ 
             background: {card_bg}; 
-            padding: 18px 20px 14px 20px; 
+            padding: 20px 22px; 
             border-radius: 14px; 
             text-align: left; 
             border: 1px solid {border_color};
             box-shadow: {shadow_card};
             transition: all 0.2s ease;
-            position: relative;
-            overflow: hidden;
         }}
         .kpi-card:hover {{
             box-shadow: {shadow_hover};
@@ -135,20 +133,15 @@ def inject_enterprise_css(theme):
             color: {subtext_color}; 
             text-transform: uppercase; 
             letter-spacing: 0.6px; 
-            margin-bottom: 6px;
+            margin-bottom: 8px;
         }}
         .kpi-value {{ 
-            font-size: 26px; 
+            font-size: 28px; 
             font-weight: 700; 
             color: {kpi_value_color}; 
             letter-spacing: -0.5px; 
-            margin: 2px 0 8px 0;
+            margin: 0;
             line-height: 1.1;
-        }}
-        .kpi-sparkline {{
-            margin-top: 6px;
-            height: 24px;
-            width: 100%;
         }}
         
         /* Chart Card Containers (Matching Image 2) */
@@ -221,48 +214,30 @@ def inject_enterprise_css(theme):
     """, unsafe_allow_html=True)
 
 
-def render_kpi_card(title, value, sparkline_type="up"):
+def render_kpi_card(title, value):
     """
-    Renders clean KPI cards with embedded smooth SVG sparklines (matching Image 2).
+    Renders minimalist, clean KPI cards with bold number and clear metric title.
     """
-    if sparkline_type == "up":
-        path = "M 0 20 Q 20 24, 35 14 T 65 16 T 95 6 T 120 4"
-        stroke = "#2b5c7a"
-    elif sparkline_type == "down":
-        path = "M 0 6 Q 25 8, 45 16 T 80 12 T 100 22 T 120 24"
-        stroke = "#0284c7"
-    elif sparkline_type == "pulse":
-        path = "M 0 16 Q 15 6, 30 20 T 60 10 T 90 18 T 120 8"
-        stroke = "#3b82f6"
-    else:
-        path = "M 0 18 Q 20 8, 45 20 T 80 8 T 120 12"
-        stroke = "#64748b"
-
     return f"""
     <div class='kpi-card'>
         <div class='kpi-label'>{title}</div>
         <div class='kpi-value'>{value}</div>
-        <div class='kpi-sparkline'>
-            <svg width="100%" height="24" viewBox="0 0 120 26" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="{path}" stroke="{stroke}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-        </div>
     </div>
     """
 
 def render_kpi_row(kpis):
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(render_kpi_card("Total Revenue", format_currency(kpis.get('total_revenue', 0)), "up"), unsafe_allow_html=True)
-    with c2: st.markdown(render_kpi_card("Total Orders", format_number(kpis.get('total_orders', 0)), "pulse"), unsafe_allow_html=True)
-    with c3: st.markdown(render_kpi_card("Avg Order Value", format_currency(kpis.get('avg_order_value', 0)), "down"), unsafe_allow_html=True)
-    with c4: st.markdown(render_kpi_card("Active Customers", format_number(kpis.get('active_customers', 0)), "wave"), unsafe_allow_html=True)
+    with c1: st.markdown(render_kpi_card("Total Revenue", format_currency(kpis.get('total_revenue', 0))), unsafe_allow_html=True)
+    with c2: st.markdown(render_kpi_card("Total Orders", format_number(kpis.get('total_orders', 0))), unsafe_allow_html=True)
+    with c3: st.markdown(render_kpi_card("Avg Order Value", format_currency(kpis.get('avg_order_value', 0))), unsafe_allow_html=True)
+    with c4: st.markdown(render_kpi_card("Active Customers", format_number(kpis.get('active_customers', 0))), unsafe_allow_html=True)
 
 def render_kpi_row_2(kpis):
     c1, c2, c3 = st.columns(3)
-    with c1: st.markdown(render_kpi_card("Repeat Purchase Rate", f"{kpis.get('repeat_purchase_rate', 0):.1f}%", "up"), unsafe_allow_html=True)
-    with c2: st.markdown(render_kpi_card("Avg Churn Risk", f"{kpis.get('churn_risk_avg', 0):.1f}%", "down"), unsafe_allow_html=True)
+    with c1: st.markdown(render_kpi_card("Repeat Purchase Rate", f"{kpis.get('repeat_purchase_rate', 0):.1f}%"), unsafe_allow_html=True)
+    with c2: st.markdown(render_kpi_card("Avg Churn Risk", f"{kpis.get('churn_risk_avg', 0):.1f}%"), unsafe_allow_html=True)
     csat = kpis.get('customer_satisfaction', 0.0)
-    with c3: st.markdown(render_kpi_card("Customer Satisfaction", f"{csat:.1f} / 5", "pulse"), unsafe_allow_html=True)
+    with c3: st.markdown(render_kpi_card("Customer Satisfaction", f"{csat:.1f} / 5"), unsafe_allow_html=True)
 
 def handle_explain_with_ai(prompt):
     st.session_state.pending_ai_query = prompt
