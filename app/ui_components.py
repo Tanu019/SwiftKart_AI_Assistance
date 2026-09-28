@@ -438,3 +438,9 @@ def render_sidebar_data_section(dataframes):
                 st.sidebar.error(f"Error reading {f.name}: {e}")
                 
     return uploaded_dfs
+
+def render_data_used(dataframes):
+    """Backwards-compatible wrapper."""
+    return render_sidebar_data_section(dataframes)
+
+

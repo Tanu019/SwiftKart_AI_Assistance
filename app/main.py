@@ -12,7 +12,7 @@ st.set_page_config(page_title="SwiftKart Intelligence", page_icon="✨", layout=
 from app.data_loader import load_data
 from app.analytics import get_kpis, generate_management_briefing, generate_management_report, apply_global_filters, get_dashboard_queries
 from app.ui_components import (
-    inject_enterprise_css, render_data_used, render_sidebar_data_section, render_executive_overview, 
+    inject_enterprise_css, render_sidebar_data_section, render_executive_overview, 
     initialize_chat_history, render_chat_history, render_message_bubble, render_follow_ups
 )
 from app.chat_engine import init_chat_engine, ask_assistant
