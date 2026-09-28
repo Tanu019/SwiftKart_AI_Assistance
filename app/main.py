@@ -37,6 +37,8 @@ def main():
         st.session_state.current_page = "📊 Dashboard"
     if "pending_ai_query" not in st.session_state:
         st.session_state.pending_ai_query = None
+    if "time_range" not in st.session_state:
+        st.session_state.time_range = "Total"
 
     with st.spinner("Loading Enterprise Datalake..."):
         raw_data = get_cached_data()
@@ -75,7 +77,12 @@ def main():
     personas = ["All"] + sorted(list(raw_data["customers"]["persona"].dropna().unique())) if "customers" in raw_data else ["All"]
     selected_persona = st.sidebar.selectbox("Customer Persona", personas)
     
-    active_filters = {"city": selected_city, "persona": selected_persona, "role": role}
+    active_filters = {
+        "city": selected_city, 
+        "persona": selected_persona, 
+        "role": role,
+        "time_range": st.session_state.time_range
+    }
     
     # Apply Filters
     filtered_data = apply_global_filters(raw_data, active_filters)

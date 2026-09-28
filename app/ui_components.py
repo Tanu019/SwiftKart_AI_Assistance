@@ -256,20 +256,31 @@ def render_chart_section(title, fig, button_text, explain_prompt, key):
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 def render_executive_overview(kpis, briefing, charts_data):
-    # Top Dashboard Header (Clean Corporate Look matching Image 2)
-    st.markdown("""
-        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 1.4rem; padding-top: 0.5rem;">
-            <div>
+    # Top Dashboard Header with Interactive Time Filters (Matching Image 2)
+    col_hdr, col_btns = st.columns([0.62, 0.38])
+    with col_hdr:
+        st.markdown("""
+            <div style="margin-bottom: 1rem; padding-top: 0.2rem;">
                 <h1 class="dashboard-header-title">Executive Analytics</h1>
                 <p class="dashboard-header-subtitle">Real-time Quick-Commerce Performance Overview</p>
             </div>
-            <div style="display: flex; gap: 8px;">
-                <span class="filter-pill">Month</span>
-                <span class="filter-pill">Quarter</span>
-                <span class="filter-pill" style="background:#2b5c7a; color:#ffffff; border-color:#2b5c7a;">Total</span>
-            </div>
-        </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    with col_btns:
+        st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+        current_tr = st.session_state.get("time_range", "Total")
+        b1, b2, b3 = st.columns(3)
+        with b1:
+            if st.button("Month", use_container_width=True, type="primary" if current_tr == "Month" else "secondary", key="btn_month"):
+                st.session_state.time_range = "Month"
+                st.rerun()
+        with b2:
+            if st.button("Quarter", use_container_width=True, type="primary" if current_tr == "Quarter" else "secondary", key="btn_quarter"):
+                st.session_state.time_range = "Quarter"
+                st.rerun()
+        with b3:
+            if st.button("Total", use_container_width=True, type="primary" if current_tr == "Total" else "secondary", key="btn_total"):
+                st.session_state.time_range = "Total"
+                st.rerun()
     
     # KPI Rows
     render_kpi_row(kpis)

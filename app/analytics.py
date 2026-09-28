@@ -83,6 +83,17 @@ def apply_global_filters(dataframes, filters):
             if filters["persona"] != "All":
                 f_df = f_df[f_df["persona"] == filters["persona"]]
                 
+        # Apply Time Range filter (Month = last 30d, Quarter = last 90d, Total = all)
+        if filters.get("time_range") and name == "orders" and "order_timestamp" in f_df.columns:
+            time_range = filters["time_range"]
+            if time_range in ["Month", "Quarter"]:
+                temp_dt = pd.to_datetime(f_df["order_timestamp"], errors="coerce")
+                max_dt = temp_dt.max()
+                if pd.notnull(max_dt):
+                    days = 30 if time_range == "Month" else 90
+                    cutoff = max_dt - pd.Timedelta(days=days)
+                    f_df = f_df[temp_dt >= cutoff]
+                
         filtered[name] = f_df
         
     return filtered
