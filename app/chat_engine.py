@@ -34,12 +34,12 @@ def _build_llm() -> OpenAILike | None:
         return None
 
     return OpenAILike(
-        model="openai/gpt-oss-20b",
+        model="qwen/qwen3.8-27b",
         api_base="https://api.groq.com/openai/v1",
         api_key=api_key,
         is_chat_model=True,
         context_window=8192,
-        max_tokens=4096,
+        max_tokens=2048,
     )
 
 

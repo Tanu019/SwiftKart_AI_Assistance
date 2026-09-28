@@ -52,10 +52,18 @@ def main():
             st.rerun()
     st.sidebar.caption("AI-Powered Management Intelligence")
     
-    if st.session_state.current_page == "🤖 Chatbot":
-        if st.sidebar.button("🔙 Back to Dashboard", use_container_width=True):
-            st.session_state.current_page = "📊 Dashboard"
-            st.rerun()    
+    # Navigation Buttons
+    nav_col1, nav_col2 = st.sidebar.columns(2)
+    with nav_col1:
+        if st.button("📊 Dashboard", use_container_width=True, type="primary" if st.session_state.current_page == "📊 Dashboard" else "secondary"):
+            if st.session_state.current_page != "📊 Dashboard":
+                st.session_state.current_page = "📊 Dashboard"
+                st.rerun()
+    with nav_col2:
+        if st.button("🤖 Chatbot", use_container_width=True, type="primary" if st.session_state.current_page == "🤖 Chatbot" else "secondary"):
+            if st.session_state.current_page != "🤖 Chatbot":
+                st.session_state.current_page = "🤖 Chatbot"
+                st.rerun()    
     # --- GLOBAL FILTERS ---
     st.sidebar.markdown("---")
     st.sidebar.markdown("### 🎛️ Global Filters")
