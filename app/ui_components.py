@@ -7,49 +7,49 @@ from app.visualizations import (
 
 def inject_enterprise_css(theme):
     if theme == "Light":
-        bg_color = "#f0f2f5"
-        sidebar_bg = "#ffffff"
-        text_color = "#0f172a"
-        subtext_color = "#64748b"
-        card_bg = "#ffffff"
-        border_color = "#e2e8f0"
-        shadow_card = "0 1px 3px rgba(15, 23, 42, 0.05), 0 10px 15px -5px rgba(15, 23, 42, 0.03)"
-        shadow_hover = "0 4px 20px -2px rgba(15, 23, 42, 0.08)"
-        user_bubble = "#e2e8f0"
-        assistant_bubble = "#ffffff"
-        kpi_value_color = "#0f172a"
-        chat_input_bg = "#ffffff"
-        chat_border = "#cbd5e1"
-        accent_button = "#f1f5f9"
-        accent_button_hover = "#e2e8f0"
-        button_text = "#1e293b"
-        sparkline_color = "#2b5c7a"
-    else: # Dark
-        bg_color = "#0b0f19"
-        sidebar_bg = "#111827"
-        text_color = "#f8fafc"
-        subtext_color = "#94a3b8"
-        card_bg = "#161f30"
-        border_color = "#243247"
-        shadow_card = "0 4px 20px rgba(0, 0, 0, 0.4)"
-        shadow_hover = "0 8px 30px rgba(0, 0, 0, 0.6)"
-        user_bubble = "#1e293b"
-        assistant_bubble = "#161f30"
-        kpi_value_color = "#f8fafc"
-        chat_input_bg = "#161f30"
-        chat_border = "#334155"
-        accent_button = "#1e293b"
-        accent_button_hover = "#334155"
-        button_text = "#f8fafc"
-        sparkline_color = "#38bdf8"
+        bg_color = "#F0EFEA"
+        sidebar_bg = "#FAF9F6"
+        text_color = "#090F15"
+        subtext_color = "#6C6D74"
+        card_bg = "#FFFFFF"
+        border_color = "#D8D6D0"
+        shadow_card = "0 1px 3px rgba(9, 15, 21, 0.05), 0 8px 16px -4px rgba(9, 15, 21, 0.03)"
+        shadow_hover = "0 4px 20px -2px rgba(9, 15, 21, 0.08)"
+        user_bubble = "#E5E3DE"
+        assistant_bubble = "#FFFFFF"
+        kpi_value_color = "#090F15"
+        chat_input_bg = "#FFFFFF"
+        chat_border = "#D3D1CE"
+        accent_button = "#E5E3DE"
+        accent_button_hover = "#D3D1CE"
+        button_text = "#090F15"
+        primary_accent = "#6366F1"
+    else: # Dark (Alpine Twilight)
+        bg_color = "#090F15"
+        sidebar_bg = "#0D141C"
+        text_color = "#D3D1CE"
+        subtext_color = "#B3B7BA"
+        card_bg = "#121A24"
+        border_color = "rgba(211, 209, 206, 0.12)"
+        shadow_card = "0 4px 24px rgba(0, 0, 0, 0.45)"
+        shadow_hover = "0 8px 32px rgba(0, 0, 0, 0.65)"
+        user_bubble = "#182330"
+        assistant_bubble = "#121A24"
+        kpi_value_color = "#D3D1CE"
+        chat_input_bg = "#121A24"
+        chat_border = "#2A3848"
+        accent_button = "#18222E"
+        accent_button_hover = "#233140"
+        button_text = "#D3D1CE"
+        primary_accent = "#7C83FD"
 
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,600&display=swap');
         
-        /* Global Reset */
+        /* Global Reset & Body Typography (Manrope) */
         html, body, [class*="css"] {{ 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important; 
+            font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; 
             color: {text_color} !important; 
         }}
         
@@ -66,7 +66,7 @@ def inject_enterprise_css(theme):
             background-color: transparent !important; 
         }}
         
-        /* Sidebar Clean Styling */
+        /* Sidebar Alpine Twilight Styling */
         [data-testid="stSidebar"] {{ 
             background-color: {sidebar_bg} !important; 
             border-right: 1px solid {border_color}; 
@@ -74,31 +74,36 @@ def inject_enterprise_css(theme):
         [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p, 
         [data-testid="stSidebar"] label {{ 
             color: {text_color} !important; 
+            font-family: 'Manrope', sans-serif !important;
         }}
         
-        /* Form Inputs & Dropdowns */
+        /* Form Inputs & Dropdowns (Alpine Twilight) */
         div[data-baseweb="select"] > div {{
             background-color: {card_bg} !important;
             border: 1px solid {border_color} !important;
             color: {text_color} !important;
             border-radius: 10px;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+            box-shadow: 0 1px 2px rgba(0,0,0,0.15);
+            font-family: 'Manrope', sans-serif !important;
         }}
         
-        /* Dashboard Headers */
+        /* Dashboard Headers (Newsreader Editorial Serif) */
         .dashboard-header-title {{
-            font-size: 2.2rem;
-            font-weight: 700;
+            font-family: 'Newsreader', Georgia, 'Times New Roman', serif !important;
+            font-size: 2.35rem;
+            font-weight: 600;
             color: {kpi_value_color};
-            letter-spacing: -0.02em;
+            letter-spacing: -0.01em;
             margin: 0;
             padding: 0;
         }}
         .dashboard-header-subtitle {{
+            font-family: 'Manrope', sans-serif !important;
             font-size: 0.95rem;
             color: {subtext_color};
             margin-top: 0.2rem;
             font-weight: 400;
+            letter-spacing: 0.2px;
         }}
         
         /* Top Navigation Filter Pills */
@@ -107,13 +112,14 @@ def inject_enterprise_css(theme):
             color: {button_text};
             padding: 6px 14px;
             border-radius: 20px;
-            font-size: 12.5px;
+            font-size: 12px;
             font-weight: 500;
             border: 1px solid {border_color};
             display: inline-block;
+            font-family: 'Manrope', sans-serif !important;
         }}
         
-        /* KPI Cards (Minimalist Clean Design) */
+        /* KPI Cards (Alpine Twilight Minimalist) */
         .kpi-card {{ 
             background: {card_bg}; 
             padding: 20px 22px; 
@@ -125,17 +131,20 @@ def inject_enterprise_css(theme):
         }}
         .kpi-card:hover {{
             box-shadow: {shadow_hover};
+            border-color: rgba(211, 209, 206, 0.25);
             transform: translateY(-2px);
         }}
         .kpi-label {{ 
-            font-size: 11.5px; 
+            font-family: 'Manrope', sans-serif !important;
+            font-size: 11px; 
             font-weight: 600; 
             color: {subtext_color}; 
             text-transform: uppercase; 
-            letter-spacing: 0.6px; 
+            letter-spacing: 0.8px; 
             margin-bottom: 8px;
         }}
         .kpi-value {{ 
+            font-family: 'Manrope', sans-serif !important;
             font-size: 28px; 
             font-weight: 700; 
             color: {kpi_value_color}; 
@@ -144,7 +153,7 @@ def inject_enterprise_css(theme):
             line-height: 1.1;
         }}
         
-        /* Chart Card Containers (Matching Image 2) */
+        /* Chart Card Containers */
         .chart-card-container {{
             background: {card_bg};
             border: 1px solid {border_color};
@@ -154,28 +163,36 @@ def inject_enterprise_css(theme):
             margin-bottom: 1rem;
         }}
         .chart-title-text {{
-            font-size: 15.5px;
+            font-family: 'Newsreader', Georgia, serif !important;
+            font-size: 17px;
             font-weight: 600;
             color: {kpi_value_color};
-            letter-spacing: -0.01em;
+            letter-spacing: 0.1px;
         }}
         
-        /* Clean Pill Action Buttons */
+        /* Alpine Twilight Buttons */
         div.stButton > button {{
             background: {accent_button} !important;
             color: {button_text} !important;
             border: 1px solid {border_color} !important;
-            border-radius: 20px !important;
+            border-radius: 10px !important;
             padding: 0.35rem 0.85rem !important;
-            font-size: 12px !important;
-            font-weight: 500 !important;
+            font-size: 12.5px !important;
+            font-weight: 600 !important;
+            font-family: 'Manrope', sans-serif !important;
             transition: all 0.2s ease !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.03) !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.08) !important;
         }}
         div.stButton > button:hover {{
             background: {accent_button_hover} !important;
-            border-color: #94a3b8 !important;
+            border-color: {text_color} !important;
             transform: translateY(-1px) !important;
+        }}
+        div.stButton > button[kind="primary"] {{
+            background: {kpi_value_color} !important;
+            color: {bg_color} !important;
+            border: 1px solid {kpi_value_color} !important;
+            font-weight: 700 !important;
         }}
         
         /* Chat UI Styling */
@@ -186,13 +203,15 @@ def inject_enterprise_css(theme):
             max-width: 82%; 
             padding: 16px 20px; 
             border-radius: 14px; 
-            font-size: 14.5px; 
+            font-size: 14px; 
             line-height: 1.6; 
             color: {text_color}; 
             box-shadow: {shadow_card}; 
+            font-family: 'Manrope', sans-serif !important;
         }}
         .enterprise-message-container.user .enterprise-bubble {{ 
             background-color: {user_bubble}; 
+            border: 1px solid {border_color};
             border-bottom-right-radius: 4px; 
         }}
         .enterprise-message-container.assistant .enterprise-bubble {{ 
@@ -201,9 +220,10 @@ def inject_enterprise_css(theme):
             border: 1px solid {border_color}; 
         }}
         .enterprise-bubble h3 {{ 
+            font-family: 'Newsreader', Georgia, serif !important;
             margin-top: 0; 
             margin-bottom: 8px; 
-            font-size: 16px; 
+            font-size: 17px; 
             color: {kpi_value_color}; 
             font-weight: 600; 
         }}

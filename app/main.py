@@ -29,7 +29,7 @@ def get_cached_engine(_dataframes):
 
 def main():
     if "theme" not in st.session_state:
-        st.session_state.theme = "Light"
+        st.session_state.theme = "Dark"
         
     inject_enterprise_css(st.session_state.theme)
     
