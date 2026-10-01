@@ -210,7 +210,8 @@ DO NOT output any <think> tags. Just output the final polished text formatted wi
         in_think_block = False
         buffer = ""
         for chunk in response_gen:
-            buffer += chunk.delta
+            if chunk.delta:
+                buffer += chunk.delta
             
             if "<think>" in buffer:
                 in_think_block = True
@@ -325,7 +326,7 @@ Rules:
                 "Show revenue breakdown by payment method."
             ]
 
-    def query(self, question: str, history_list: list = None, status=None, role: str = "Business Head"):
+    def query(self, question: str, history_list: list | None = None, status=None, role: str = "Business Head"):
         """Main routing execution with caching, memory, and self-healing."""
         # 1. Check Cache
         if status: status.update(label="Checking memory...", state="running")
@@ -361,6 +362,10 @@ Rules:
                     if status: status.update(label="Failed to generate correct SQL.", state="error")
                     return f"⚠️ I encountered a data error I couldn't fix: {e}"
         
+        if df is None:
+            if status: status.update(label="Failed to retrieve data.", state="error")
+            return "⚠️ No data could be retrieved for this query."
+
         # 4. Route Output
         try:
             if status: status.update(label="Routing data...", state="running")

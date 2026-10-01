@@ -454,18 +454,6 @@ def initialize_chat_history():
             "Does delivery time impact customer satisfaction?"
         ]
 
-def render_message_bubble(role, content_text):
-    if role == "user":
-        html = f"<div class='enterprise-message-container user'><div class='enterprise-bubble'>{content_text}</div></div>"
-    else:
-        import html as html_lib
-        import re
-        safe_content = html_lib.escape(content_text).replace('\n', '<br>')
-        safe_content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', safe_content)
-        safe_content = re.sub(r'### (.*?)(<br>|$)', r'<h3>\1</h3>\2', safe_content)
-        html = f"<div class='enterprise-message-container assistant'><div class='enterprise-bubble'>{safe_content}</div></div>"
-    st.markdown(html, unsafe_allow_html=True)
-
 def render_follow_ups():
     if st.session_state.follow_ups:
         st.markdown("<div style='font-size:14px; font-weight:600; margin-bottom:8px;'>Explore Further</div>", unsafe_allow_html=True)

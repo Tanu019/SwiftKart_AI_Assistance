@@ -8,7 +8,20 @@ def load_data():
     Loads all required CSV datasets into pandas DataFrames.
     Uses Streamlit caching to prevent reloading data on every interaction.
     """
+    # Dynamically resolve data directory
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    possible_dirs = [
+        "data",
+        os.path.join(base_dir, "data"),
+        os.path.join("Tanu Project", "data"),
+        os.path.join(base_dir, "Tanu Project", "data"),
+    ]
+    
     data_dir = "data"
+    for d in possible_dirs:
+        if os.path.exists(os.path.join(d, "customers.csv")):
+            data_dir = d
+            break
     
     # Define file paths
     files = {
