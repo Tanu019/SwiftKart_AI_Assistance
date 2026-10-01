@@ -1,4 +1,6 @@
 import streamlit as st
+import html as html_lib
+import re
 from app.analytics import format_currency, format_number
 from app.visualizations import (
     plot_revenue_by_city, plot_orders_trend, plot_persona_dist,
@@ -9,6 +11,7 @@ def inject_enterprise_css(theme):
     if theme == "Light":
         bg_color = "#F8FAFC"
         sidebar_bg = "#FFFFFF"
+        sidebar_border = "#E2E8F0"
         text_color = "#0F172A"
         subtext_color = "#475569"
         card_bg = "#FFFFFF"
@@ -18,43 +21,63 @@ def inject_enterprise_css(theme):
         user_bubble = "#F1F5F9"
         assistant_bubble = "#FFFFFF"
         kpi_value_color = "#0F172A"
+        header_color = "#0F172A"
         chat_input_bg = "#FFFFFF"
         chat_border = "#CBD5E1"
-        accent_button = "#F1F5F9"
-        accent_button_hover = "#E2E8F0"
+        accent_button = "#F8FAFC"
+        accent_button_hover = "#F1F5F9"
         button_text = "#0F172A"
         primary_btn_bg = "#0F172A"
         primary_btn_text = "#FFFFFF"
         alert_text = "#0F172A"
+        section_hdr_bg = "#F1F5F9"
+        section_hdr_text = "#0F172A"
+        badge_num_bg = "#2563EB"
+        badge_num_text = "#FFFFFF"
+        bullet_dot_color = "#2563EB"
     else: # Dark (Alpine Twilight)
         bg_color = "#090F15"
         sidebar_bg = "#0D141C"
-        text_color = "#D3D1CE"
-        subtext_color = "#B3B7BA"
+        sidebar_border = "rgba(211, 209, 206, 0.12)"
+        text_color = "#F1F5F9"
+        subtext_color = "#94A3B8"
         card_bg = "#121A24"
         border_color = "rgba(211, 209, 206, 0.12)"
         shadow_card = "0 4px 24px rgba(0, 0, 0, 0.45)"
         shadow_hover = "0 8px 32px rgba(0, 0, 0, 0.65)"
         user_bubble = "#182330"
         assistant_bubble = "#121A24"
-        kpi_value_color = "#D3D1CE"
+        kpi_value_color = "#F8FAFC"
+        header_color = "#F8FAFC"
         chat_input_bg = "#121A24"
         chat_border = "#2A3848"
         accent_button = "#18222E"
         accent_button_hover = "#233140"
-        button_text = "#D3D1CE"
-        primary_btn_bg = "#D3D1CE"
+        button_text = "#F1F5F9"
+        primary_btn_bg = "#E2E8F0"
         primary_btn_text = "#090F15"
-        alert_text = "#D3D1CE"
+        alert_text = "#F1F5F9"
+        section_hdr_bg = "#1A2533"
+        section_hdr_text = "#F8FAFC"
+        badge_num_bg = "#38BDF8"
+        badge_num_text = "#090F15"
+        bullet_dot_color = "#38BDF8"
 
     st.markdown(f"""
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700&family=Newsreader:wght@600&family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Newsreader:wght@600&display=swap');
         
-        /* Global Reset & Body Typography (Manrope) */
+        /* Global Reset & Body Typography */
         html, body, .stApp {{ 
             font-family: 'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important; 
             color: {text_color} !important; 
+            background-color: {bg_color} !important; 
+        }}
+        
+        /* Universal Typography Overrides */
+        h1, h2, h3, h4, h5, h6 {{
+            color: {header_color} !important;
+            font-family: 'Manrope', sans-serif !important;
         }}
         
         /* Strict Protection for Streamlit Material Symbols / Icons */
@@ -62,31 +85,19 @@ def inject_enterprise_css(theme):
         .material-symbols-rounded,
         .material-symbols-outlined,
         .material-icons,
-        span[data-testid="stIconMaterial"],
-        [data-testid="stExpander"] span[data-testid="stIconMaterial"],
-        [data-testid="stFileUploader"] span[data-testid="stIconMaterial"],
-        [data-testid="stSidebar"] span[data-testid="stIconMaterial"] {{
+        span[data-testid="stIconMaterial"] {{
             font-family: 'Material Symbols Rounded', 'Material Icons', sans-serif !important;
             font-feature-settings: 'liga' 1 !important;
             -webkit-font-feature-settings: 'liga' 1 !important;
-            letter-spacing: normal !important;
-            text-transform: none !important;
             display: inline-block !important;
-            white-space: nowrap !important;
-            word-wrap: normal !important;
-            direction: ltr !important;
         }}
         
-        /* Clean Sidebar Layout & Hide Raw Collapse Ligature Text */
+        /* Clean Sidebar Layout */
         [data-testid="stSidebarCollapseButton"], 
         [data-testid="collapsedControl"] {{
             display: none !important;
         }}
         
-        /* App Canvas */
-        .stApp {{ 
-            background-color: {bg_color} !important; 
-        }}
         .block-container {{ 
             padding-top: 1.5rem !important; 
             padding-bottom: 3rem !important;
@@ -96,17 +107,24 @@ def inject_enterprise_css(theme):
             background-color: transparent !important; 
         }}
         
-        /* Sidebar Styling */
+        /* Sidebar Styling & Strict High Color Contrast */
         [data-testid="stSidebar"] {{ 
             background-color: {sidebar_bg} !important; 
-            border-right: 1px solid {border_color} !important; 
+            border-right: 1px solid {sidebar_border} !important; 
         }}
-        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] p, 
+        [data-testid="stSidebar"] [data-testid="stMarkdownContainer"] *,
+        [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3,
         [data-testid="stSidebar"] label,
-        [data-testid="stSidebar"] .stCaption,
-        [data-testid="stSidebar"] [data-testid="stWidgetLabel"] {{ 
+        [data-testid="stSidebar"] span,
+        [data-testid="stSidebar"] p {{ 
             color: {text_color} !important; 
             font-family: 'Manrope', sans-serif !important;
+        }}
+        [data-testid="stSidebar"] .stCaption,
+        [data-testid="stSidebar"] .stCaption * {{
+            color: {subtext_color} !important;
+            opacity: 0.95 !important;
+            font-size: 0.82rem !important;
         }}
         
         /* Form Inputs & Dropdowns */
@@ -121,13 +139,18 @@ def inject_enterprise_css(theme):
         div[data-baseweb="select"] * {{
             color: {text_color} !important;
         }}
+        div[data-baseweb="popover"] ul,
+        div[data-baseweb="popover"] li {{
+            background-color: {card_bg} !important;
+            color: {text_color} !important;
+        }}
         
         /* Dashboard Headers */
         .dashboard-header-title {{
             font-family: 'Newsreader', Georgia, 'Times New Roman', serif !important;
-            font-size: 2.45rem !important;
+            font-size: 2.35rem !important;
             font-weight: 600 !important;
-            color: {kpi_value_color} !important;
+            color: {header_color} !important;
             letter-spacing: -0.01em;
             margin: 0;
             padding: 0;
@@ -137,19 +160,18 @@ def inject_enterprise_css(theme):
             font-size: 0.95rem !important;
             color: {subtext_color} !important;
             margin-top: 0.2rem;
-            font-weight: 400;
-            letter-spacing: 0.2px;
+            font-weight: 500;
         }}
         
         /* KPI Cards */
         .kpi-card {{ 
             background: {card_bg} !important; 
-            padding: 20px 22px; 
+            padding: 18px 20px; 
             border-radius: 14px; 
             text-align: left; 
             border: 1px solid {border_color} !important;
             box-shadow: {shadow_card};
-            transition: all 0.2s ease;
+            transition: transform 0.15s ease, box-shadow 0.15s ease;
         }}
         .kpi-card:hover {{
             box-shadow: {shadow_hover};
@@ -157,16 +179,16 @@ def inject_enterprise_css(theme):
         }}
         .kpi-label {{ 
             font-family: 'Manrope', sans-serif !important;
-            font-size: 11.5px !important; 
+            font-size: 11px !important; 
             font-weight: 600 !important; 
             color: {subtext_color} !important; 
             text-transform: uppercase; 
             letter-spacing: 0.8px; 
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }}
         .kpi-value {{ 
             font-family: 'Manrope', sans-serif !important;
-            font-size: 28px !important; 
+            font-size: 26px !important; 
             font-weight: 700 !important; 
             color: {kpi_value_color} !important; 
             letter-spacing: -0.5px; 
@@ -185,13 +207,12 @@ def inject_enterprise_css(theme):
         }}
         .chart-title-text {{
             font-family: 'Newsreader', Georgia, serif !important;
-            font-size: 17.5px !important;
+            font-size: 17px !important;
             font-weight: 600 !important;
-            color: {kpi_value_color} !important;
-            letter-spacing: 0.1px;
+            color: {header_color} !important;
         }}
         
-        /* Buttons Styling (Clean & High Contrast) */
+        /* Buttons Styling */
         div.stButton > button {{
             background-color: {accent_button} !important;
             color: {button_text} !important;
@@ -201,8 +222,8 @@ def inject_enterprise_css(theme):
             font-size: 12.5px !important;
             font-weight: 600 !important;
             font-family: 'Manrope', sans-serif !important;
-            transition: all 0.2s ease !important;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.06) !important;
+            transition: all 0.15s ease !important;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.04) !important;
         }}
         div.stButton > button p, 
         div.stButton > button span {{
@@ -227,26 +248,16 @@ def inject_enterprise_css(theme):
             color: {primary_btn_text} !important;
         }}
         
-        /* Streamlit Alerts / Callouts High Contrast */
-        [data-testid="stAlert"] {{
-            border-radius: 10px !important;
-            font-family: 'Manrope', sans-serif !important;
-        }}
-        [data-testid="stAlert"] p,
-        [data-testid="stAlert"] strong {{
-            color: {alert_text} !important;
-        }}
-        
         /* Chat UI Styling */
-        .enterprise-message-container {{ display: flex; margin-bottom: 16px; width: 100%; }}
+        .enterprise-message-container {{ display: flex; margin-bottom: 18px; width: 100%; }}
         .enterprise-message-container.user {{ justify-content: flex-end; }}
         .enterprise-message-container.assistant {{ justify-content: flex-start; }}
         .enterprise-bubble {{ 
-            max-width: 82%; 
-            padding: 16px 20px; 
+            max-width: 88%; 
+            padding: 18px 22px; 
             border-radius: 14px; 
             font-size: 14px; 
-            line-height: 1.6; 
+            line-height: 1.65; 
             color: {text_color}; 
             box-shadow: {shadow_card}; 
             font-family: 'Manrope', sans-serif !important;
@@ -261,13 +272,95 @@ def inject_enterprise_css(theme):
             border-bottom-left-radius: 4px; 
             border: 1px solid {border_color}; 
         }}
-        .enterprise-bubble h3 {{ 
-            font-family: 'Newsreader', Georgia, serif !important;
-            margin-top: 0; 
-            margin-bottom: 8px; 
-            font-size: 17px; 
-            color: {kpi_value_color} !important; 
-            font-weight: 600; 
+        
+        /* Structured Section Header Inside Bubble */
+        .bubble-section-header {{
+            background: {section_hdr_bg};
+            padding: 6px 12px;
+            border-radius: 8px;
+            margin-top: 14px;
+            margin-bottom: 8px;
+            display: inline-block;
+            border: 1px solid {border_color};
+        }}
+        .bubble-section-header:first-child {{
+            margin-top: 0;
+        }}
+        .bubble-section-header h4 {{
+            margin: 0 !important;
+            padding: 0 !important;
+            font-size: 13.5px !important;
+            font-weight: 700 !important;
+            color: {section_hdr_text} !important;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        
+        /* Pointers & Bullet List Inside Bubble */
+        .bubble-pointer-list {{
+            margin: 6px 0 10px 0;
+            padding-left: 20px;
+            list-style-type: none;
+        }}
+        .bubble-pointer-list li {{
+            position: relative;
+            padding-left: 14px;
+            margin-bottom: 7px;
+            line-height: 1.55;
+            color: {text_color};
+            font-size: 13.5px;
+        }}
+        .bubble-pointer-list li::before {{
+            content: "•";
+            position: absolute;
+            left: 0;
+            color: {bullet_dot_color};
+            font-size: 16px;
+            line-height: 1;
+            font-weight: bold;
+        }}
+        .bubble-pointer-list li strong {{
+            color: {header_color};
+            font-weight: 600;
+        }}
+        
+        /* Action Numbered Items Inside Bubble */
+        .bubble-action-item {{
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin-bottom: 8px;
+            font-size: 13.5px;
+            line-height: 1.55;
+        }}
+        .bubble-action-item .action-num {{
+            background: {badge_num_bg};
+            color: {badge_num_text};
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2px 7px;
+            border-radius: 6px;
+            margin-top: 2px;
+            flex-shrink: 0;
+        }}
+        .bubble-action-item .action-desc {{
+            color: {text_color};
+        }}
+        .bubble-action-item .action-desc strong {{
+            color: {header_color};
+            font-weight: 600;
+        }}
+        
+        .bubble-paragraph {{
+            margin-bottom: 8px;
+            font-size: 13.5px;
+            line-height: 1.55;
+            color: {text_color};
+        }}
+        .bubble-paragraph strong {{
+            color: {header_color};
+            font-weight: 600;
         }}
         
         @keyframes pulse-dot {{
@@ -283,6 +376,7 @@ def inject_enterprise_css(theme):
         
         /* Hide streamlit modebar clutter */
         .modebar {{ display: none !important; }}
+    </style>
     """, unsafe_allow_html=True)
 
 
@@ -301,7 +395,7 @@ def render_thinking_bubble(text="Analyzing data & synthesizing management insigh
     """
     Renders an animated thinking state inside the chat while the response is being analyzed.
     """
-    html = f"""
+    html_content = f"""
     <div class='enterprise-message-container assistant'>
         <div class='enterprise-bubble' style='display: flex; align-items: center; gap: 10px; font-style: italic; opacity: 0.85;'>
             <span class='analyzing-pulse'>✨</span>
@@ -309,19 +403,93 @@ def render_thinking_bubble(text="Analyzing data & synthesizing management insigh
         </div>
     </div>
     """
-    st.markdown(html, unsafe_allow_html=True)
+    st.markdown(html_content, unsafe_allow_html=True)
+
+def format_structured_bubble_html(raw_text: str) -> str:
+    """
+    Transforms AI response text into structured, high-contrast pointer cards with
+    clean bullet points, section badge headers, and numbered action items.
+    """
+    text = str(raw_text).strip()
+    # Normalize markdown headers that might be joined without double newlines
+    text = re.sub(r'([^\n])(###\s*[\U00010000-\U0010ffff\w])', r'\1\n\n\2', text)
+    text = re.sub(r'([^\n])(📌\s*)', r'\1\n\n### 📌 ', text)
+    text = re.sub(r'([^\n])(📊\s*)', r'\1\n\n### 📊 ', text)
+    text = re.sub(r'([^\n])(🔎\s*)', r'\1\n\n### 🔎 ', text)
+    text = re.sub(r'([^\n])(🎯\s*)', r'\1\n\n### 🎯 ', text)
+    text = re.sub(r'([^\n])(⚠️\s*)', r'\1\n\n### ⚠️ ', text)
+    
+    # Normalize bullet points joined without newlines
+    text = re.sub(r'([^\n])(\*\s+[A-Z0-9\(\[])', r'\1\n* \2', text)
+    text = re.sub(r'([^\n])(•\s+[A-Z0-9\(\[])', r'\1\n• \2', text)
+    text = re.sub(r'([^\n])(\d+\.\s+[A-Z0-9\(\[])', r'\1\n\2', text)
+    
+    lines = text.split('\n')
+    out = []
+    in_ul = False
+    
+    for line in lines:
+        l = line.strip()
+        if not l:
+            if in_ul:
+                out.append('</ul>')
+                in_ul = False
+            continue
+            
+        # Section Header (### Title or Icon Title)
+        if l.startswith('###') or any(l.startswith(h) for h in ['📌', '📊', '🔎', '🎯', '⚠️']):
+            if in_ul:
+                out.append('</ul>')
+                in_ul = False
+            title = l.lstrip('#').strip()
+            out.append(f"<div class='bubble-section-header'><h4>{html_lib.escape(title)}</h4></div>")
+            continue
+            
+        # Bullet list item (* or - or •)
+        if l.startswith(('* ', '- ', '• ')):
+            if not in_ul:
+                out.append("<ul class='bubble-pointer-list'>")
+                in_ul = True
+            content = l[2:].strip()
+            content = re.sub(r'^[\*\-•]\s+', '', content)
+            escaped = html_lib.escape(content)
+            escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
+            out.append(f"<li>{escaped}</li>")
+            continue
+            
+        # Numbered Action Item (1. Action)
+        num_m = re.match(r'^(\d+)\.\s+(.*)$', l)
+        if num_m:
+            if in_ul:
+                out.append('</ul>')
+                in_ul = False
+            num, content = num_m.group(1), num_m.group(2)
+            escaped = html_lib.escape(content)
+            escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
+            out.append(f"<div class='bubble-action-item'><span class='action-num'>{num}</span><div class='action-desc'>{escaped}</div></div>")
+            continue
+            
+        # Regular Paragraph
+        if in_ul:
+            out.append('</ul>')
+            in_ul = False
+        escaped = html_lib.escape(l)
+        escaped = re.sub(r'\*\*(.*?)\*\*', r'<strong>\1</strong>', escaped)
+        out.append(f"<p class='bubble-paragraph'>{escaped}</p>")
+        
+    if in_ul:
+        out.append('</ul>')
+        
+    return "".join(out)
 
 def render_message_bubble(role, content_text):
     if role == "user":
-        html = f"<div class='enterprise-message-container user'><div class='enterprise-bubble'>{content_text}</div></div>"
+        escaped = html_lib.escape(str(content_text))
+        html_bubble = f"<div class='enterprise-message-container user'><div class='enterprise-bubble'>{escaped}</div></div>"
     else:
-        import html as html_lib
-        import re
-        safe_content = html_lib.escape(content_text).replace('\n', '<br>')
-        safe_content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', safe_content)
-        safe_content = re.sub(r'### (.*?)(<br>|$)', r'<h3>\1</h3>\2', safe_content)
-        html = f"<div class='enterprise-message-container assistant'><div class='enterprise-bubble'>{safe_content}</div></div>"
-    st.markdown(html, unsafe_allow_html=True)
+        structured_content = format_structured_bubble_html(content_text)
+        html_bubble = f"<div class='enterprise-message-container assistant'><div class='enterprise-bubble'>{structured_content}</div></div>"
+    st.markdown(html_bubble, unsafe_allow_html=True)
 
 def render_kpi_row(kpis):
     c1, c2, c3, c4 = st.columns(4)
@@ -343,7 +511,6 @@ def handle_explain_with_ai(prompt):
     st.rerun()
 
 def render_chart_section(title, fig, button_text, explain_prompt, key):
-    # Enclose chart inside clean white card container
     hc, bc = st.columns([0.72, 0.28])
     with hc:
         st.markdown(f"<div class='chart-title-text' style='padding-top: 6px;'>{title}</div>", unsafe_allow_html=True)
@@ -354,7 +521,6 @@ def render_chart_section(title, fig, button_text, explain_prompt, key):
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
 def render_executive_overview(kpis, briefing, charts_data):
-    # Top Dashboard Header with Interactive Time Filters & Dropdowns (Matching Image 2)
     col_hdr, col_btns = st.columns([0.55, 0.45])
     with col_hdr:
         st.markdown("""
@@ -380,7 +546,6 @@ def render_executive_overview(kpis, briefing, charts_data):
                 st.session_state.time_filter_type = "Total"
                 st.rerun()
                 
-        # Dropdown selection for specific Month or Quarter
         if current_tr == "Month":
             all_months = [
                 "January 2025", "February 2025", "March 2025", "April 2025",
@@ -420,11 +585,10 @@ def render_executive_overview(kpis, briefing, charts_data):
 
     st.markdown("<div style='height: 16px;'></div>", unsafe_allow_html=True)
     
-    # Charts Grid (Matching Image 2 Layout)
+    # Charts Grid
     c1, c2 = st.columns(2)
     with c1:
         render_chart_section("Revenue by City", plot_revenue_by_city(charts_data.get("revenue_by_city")), "✨ Explain with AI", "Why is revenue distributed like this across cities?", "exp_rev_city")
-            
     with c2:
         render_chart_section("Orders Over Time", plot_orders_trend(charts_data.get("orders_trend")), "✨ Explain with AI", "What is causing the current trend in orders over time?", "exp_ord_trend")
 
@@ -517,8 +681,6 @@ def render_sidebar_data_section(dataframes):
     
     uploaded_dfs = {}
     if uploaded_files:
-        import re
-        import pandas as pd
         for f in uploaded_files:
             try:
                 table_name = f.name.rsplit('.', 1)[0].lower()
@@ -537,5 +699,3 @@ def render_sidebar_data_section(dataframes):
 def render_data_used(dataframes):
     """Backwards-compatible wrapper."""
     return render_sidebar_data_section(dataframes)
-
-

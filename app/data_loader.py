@@ -56,8 +56,14 @@ def load_data():
         if not df_orders.empty and "order_timestamp" in df_orders.columns:
             ts = pd.to_datetime(df_orders["order_timestamp"], errors="coerce")
             df_orders["_dt"] = ts.dt.date
-            df_orders["order_month"] = ts.dt.strftime("%B %Y")
-            df_orders["order_quarter"] = "Q" + ts.dt.quarter.astype(str) + " " + ts.dt.year.astype(str)
+            m_map = {
+                1: "January", 2: "February", 3: "March", 4: "April",
+                5: "May", 6: "June", 7: "July", 8: "August",
+                9: "September", 10: "October", 11: "November", 12: "December"
+            }
+            years = ts.dt.year.astype(str)
+            df_orders["order_month"] = ts.dt.month.map(m_map) + " " + years
+            df_orders["order_quarter"] = "Q" + ts.dt.quarter.astype(str) + " " + years
         dataframes["orders"] = df_orders
     except FileNotFoundError:
         st.warning("orders.csv not found.")

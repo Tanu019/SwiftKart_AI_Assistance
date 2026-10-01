@@ -65,6 +65,14 @@ def apply_global_filters(dataframes, filters):
     Applies filters (like City, Persona, etc.) to the raw DataFrames using Pandas.
     Returns a new dict of filtered DataFrames.
     """
+    city = filters.get("city", "All")
+    persona = filters.get("persona", "All")
+    time_filter_type = filters.get("time_filter_type", "Total")
+    
+    # Fast bypass when no filters are active
+    if city in ("All", None) and persona in ("All", None) and time_filter_type == "Total":
+        return dataframes
+
     filtered = {}
     for name, df in dataframes.items():
         if df.empty:
@@ -85,8 +93,6 @@ def apply_global_filters(dataframes, filters):
                 
         # Apply Time filter (Instant using precomputed columns)
         if name == "orders":
-            time_filter_type = filters.get("time_filter_type", "Total")
-            
             if time_filter_type == "Month" and filters.get("selected_month") and filters["selected_month"] != "All Months":
                 month_val = filters["selected_month"]
                 if "order_month" in f_df.columns:
@@ -219,11 +225,13 @@ def get_dashboard_queries(dataframes, section="executive"):
                 
         if products is not None and order_items is not None and not products.empty and not order_items.empty:
             if "product_id" in products.columns and "product_id" in order_items.columns:
-                merged = order_items.merge(products[["product_id", "category"]], on="product_id", how="inner")
+                p_map = dict(zip(products["product_id"], products["category"]))
+                cat_col = order_items["product_id"].map(p_map)
                 cat_rev = (
-                    merged.groupby("category", as_index=False)["final_price"]
+                    order_items.groupby(cat_col, observed=False)["final_price"]
                     .sum()
-                    .rename(columns={"final_price": "revenue"})
+                    .reset_index()
+                    .rename(columns={"product_id": "category", "final_price": "revenue"})
                     .sort_values("revenue", ascending=False)
                 )
                 results["cat_revenue"] = cat_rev
