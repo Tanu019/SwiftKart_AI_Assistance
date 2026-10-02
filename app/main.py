@@ -16,6 +16,7 @@ from app.ui_components import (
     initialize_chat_history, render_chat_history, render_message_bubble, render_thinking_bubble, render_follow_ups
 )
 from app.chat_engine import init_chat_engine, ask_assistant
+from app.auth import render_login_page, signout_user
 
 load_dotenv()
 
@@ -32,7 +33,25 @@ def main():
         st.session_state.theme = "Dark"
         
     inject_enterprise_css(st.session_state.theme)
+
+    # --- AUTHENTICATION GUARD ---
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.user = None
+
+    if not st.session_state.authenticated:
+        # Show top theme toggle even on login page
+        top_col1, top_col2 = st.columns([11, 1])
+        with top_col2:
+            theme_icon = "🌙" if st.session_state.theme == "Light" else "☀️"
+            if st.button(theme_icon, help=f"Switch to {'Dark' if st.session_state.theme == 'Light' else 'Light'} mode", key="login_theme_btn"):
+                st.session_state.theme = "Dark" if st.session_state.theme == "Light" else "Light"
+                st.rerun()
+
+        render_login_page()
+        return
     
+    # --- APP STATE INITIALIZATION ---
     if "current_page" not in st.session_state:
         st.session_state.current_page = "📊 Dashboard"
     if "pending_ai_query" not in st.session_state:
@@ -57,6 +76,23 @@ def main():
             st.session_state.theme = "Dark" if st.session_state.theme == "Light" else "Light"
             st.rerun()
     st.sidebar.caption("AI-Powered Management Intelligence")
+
+    # --- USER PROFILE & LOGOUT ---
+    user_email = getattr(st.session_state.user, "email", "User") if st.session_state.user else "Authenticated User"
+    st.sidebar.markdown(
+        f"""
+        <div style="background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; margin: 8px 0 12px 0; border: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem;">
+            <div style="color: #94A3B8; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;">Signed in as</div>
+            <div style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">👤 {user_email}</div>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+    if st.sidebar.button("🚪 Log Out", use_container_width=True):
+        signout_user()
+        st.rerun()
+    
+    st.sidebar.markdown("---")
     
     # Navigation Buttons
     nav_col1, nav_col2 = st.sidebar.columns(2)

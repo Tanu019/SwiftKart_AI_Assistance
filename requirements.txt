@@ -9,3 +9,4 @@ httpx
 plotly
 matplotlib
 python-dotenv
+supabase
