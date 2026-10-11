@@ -16,7 +16,7 @@ from app.ui_components import (
     initialize_chat_history, render_chat_history, render_message_bubble, render_thinking_bubble, render_follow_ups
 )
 from app.chat_engine import init_chat_engine, ask_assistant
-from app.auth import render_login_page, signout_user
+from app.auth import render_login_page, signout_user, try_restore_session, ROLE_BADGES
 
 load_dotenv()
 
@@ -34,19 +34,12 @@ def main():
         
     inject_enterprise_css(st.session_state.theme)
 
-    # --- AUTHENTICATION GUARD ---
-    if "authenticated" not in st.session_state:
+    # --- SESSION RESTORATION & AUTHENTICATION GUARD ---
+    try_restore_session()
+
+    if "authenticated" not in st.session_state or not st.session_state.authenticated:
         st.session_state.authenticated = False
         st.session_state.user = None
-
-    if not st.session_state.authenticated:
-        # Show top theme toggle even on login page
-        top_col1, top_col2 = st.columns([11, 1])
-        with top_col2:
-            theme_icon = "🌙" if st.session_state.theme == "Light" else "☀️"
-            if st.button(theme_icon, help=f"Switch to {'Dark' if st.session_state.theme == 'Light' else 'Light'} mode", key="login_theme_btn"):
-                st.session_state.theme = "Dark" if st.session_state.theme == "Light" else "Light"
-                st.rerun()
 
         render_login_page()
         return
@@ -77,13 +70,22 @@ def main():
             st.rerun()
     st.sidebar.caption("AI-Powered Management Intelligence")
 
-    # --- USER PROFILE & LOGOUT ---
-    user_email = getattr(st.session_state.user, "email", "User") if st.session_state.user else "Authenticated User"
+    # --- USER PROFILE & ROLE BADGE ---
+    user_info = st.session_state.get("user") or {}
+    user_name = user_info.get("name") or "User"
+    user_email = user_info.get("email") or "Authenticated User"
+    user_role = user_info.get("role", "analyst")
+    badge_info = ROLE_BADGES.get(user_role, ROLE_BADGES["analyst"])
+
     st.sidebar.markdown(
         f"""
-        <div style="background: rgba(255,255,255,0.05); padding: 8px 12px; border-radius: 8px; margin: 8px 0 12px 0; border: 1px solid rgba(255,255,255,0.08); font-size: 0.85rem;">
-            <div style="color: #94A3B8; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;">Signed in as</div>
-            <div style="font-weight: 600; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">👤 {user_email}</div>
+        <div style="background: rgba(255,255,255,0.05); padding: 10px 14px; border-radius: 10px; margin: 8px 0 12px 0; border: 1px solid rgba(255,255,255,0.1); font-size: 0.85rem;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                <span style="color: #94A3B8; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600;">Signed in as</span>
+                <span style="background: {badge_info['bg']}; color: {badge_info['color']}; padding: 2px 8px; border-radius: 12px; font-size: 0.72rem; font-weight: 700; border: 1px solid {badge_info['color']}40;">{badge_info['label']}</span>
+            </div>
+            <div style="font-weight: 700; font-size: 0.95rem; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">👤 {user_name}</div>
+            <div style="font-size: 0.78rem; color: #94A3B8; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">✉️ {user_email}</div>
         </div>
         """,
         unsafe_allow_html=True
