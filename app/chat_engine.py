@@ -439,7 +439,7 @@ def init_chat_engine(dataframes: dict) -> DuckDBEngine | None:
 
     valid = {k: v for k, v in dataframes.items() if not v.empty}
     if not valid:
-        st.error("No valid datasets loaded. Cannot initialise chat engine.")
+        print("[WARN] No valid datasets loaded. Cannot initialise chat engine.")
         return None
 
     return DuckDBEngine(dataframes=valid, llm=llm)
@@ -448,6 +448,6 @@ def init_chat_engine(dataframes: dict) -> DuckDBEngine | None:
 def ask_assistant(engine: DuckDBEngine | None, query: str, history: list | None = None, status=None, role: str = "Business Head"):
     """Send a question to the engine with optional history and status."""
     if engine is None:
-        return "⚠️ AI Assistant Engine is offline. Please check your GROQ_API_KEY in the .env file."
+        return "AI Assistant Engine is offline. Please verify that your GROQ_API_KEY is configured in your environment."
     return engine.query(query, history, status, role)
 
