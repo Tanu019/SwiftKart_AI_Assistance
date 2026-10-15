@@ -432,24 +432,24 @@ function getPlotlyLayoutDefaults() {
     font: {
       family: 'Plus Jakarta Sans, sans-serif',
       color: isDark ? '#94A3B8' : '#475569',
-      size: 11
+      size: 10
     },
-    margin: { t: 25, r: 20, l: 55, b: 45 },
+    margin: { t: 15, r: 15, l: 48, b: 32 },
     xaxis: {
-      gridcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-      zerolinecolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-      tickfont: { size: 10, color: isDark ? '#94A3B8' : '#64748B' }
+      gridcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+      zerolinecolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      tickfont: { size: 9.5, color: isDark ? '#94A3B8' : '#64748B' }
     },
     yaxis: {
-      gridcolor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
-      zerolinecolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
-      tickfont: { size: 10, color: isDark ? '#94A3B8' : '#64748B' }
+      gridcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+      zerolinecolor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      tickfont: { size: 9.5, color: isDark ? '#94A3B8' : '#64748B' }
     },
     legend: {
       orientation: 'h',
-      y: 1.12,
+      y: 1.15,
       x: 0,
-      font: { size: 10, color: isDark ? '#CBD5E1' : '#334155' }
+      font: { size: 9.5, color: isDark ? '#CBD5E1' : '#334155' }
     }
   };
 }
@@ -726,7 +726,6 @@ function renderDashboardCharts(charts) {
 
     Plotly.newPlot('chart-category-rev', [trace], layout, config);
   }
-}
 }
 
 // -----------------------------------------------------------------------------
