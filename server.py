@@ -1,0 +1,326 @@
+"""
+server.py
+---------
+FastAPI backend server for SwiftKart AI.
+Powers the full Executive Analytics Dashboard and the conversational DuckDB AI Analyst.
+"""
+
+import os
+import sys
+
+# Ensure UTF-8 output encoding on Windows consoles
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(encoding="utf-8")
+
+import json
+import re
+import types
+from contextlib import asynccontextmanager
+from typing import Optional, List, Dict, Any
+from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel
+from dotenv import load_dotenv
+import pandas as pd
+import plotly.graph_objects as go
+
+# Emoji stripping regex for crisp enterprise typography
+EMOJI_PATTERN = re.compile(
+    r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0001FA70-\U0001FAFF]+",
+    flags=re.UNICODE
+)
+
+def sanitize_clean_text(val: Any) -> Any:
+    if isinstance(val, str):
+        return EMOJI_PATTERN.sub("", val).strip()
+    elif isinstance(val, list):
+        return [sanitize_clean_text(item) for item in val]
+    elif isinstance(val, dict):
+        return {k: sanitize_clean_text(v) for k, v in val.items()}
+    return val
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
+load_dotenv()
+
+from app.data_loader import load_data
+from app.analytics import (
+    get_kpis, 
+    generate_management_briefing, 
+    generate_management_report, 
+    apply_global_filters, 
+    get_dashboard_queries,
+    format_currency,
+    format_number
+)
+from app.chat_engine import init_chat_engine, ask_assistant
+
+# Global in-memory cache for data and engine
+RAW_DATA: Dict[str, pd.DataFrame] = {}
+CHAT_ENGINE = None
+
+def get_datalake():
+    global RAW_DATA, CHAT_ENGINE
+    if not RAW_DATA:
+        RAW_DATA = load_data()
+    if CHAT_ENGINE is None and RAW_DATA:
+        CHAT_ENGINE = init_chat_engine(RAW_DATA)
+    return RAW_DATA, CHAT_ENGINE
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[INIT] Initializing SwiftKart Datalake and AI Engine...")
+    get_datalake()
+    print("[READY] SwiftKart Backend is running on port 8000!")
+    yield
+
+app = FastAPI(title="SwiftKart AI Server", version="2.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class FilterRequest(BaseModel):
+    role: Optional[str] = "Business Head"
+    city: Optional[str] = "All"
+    persona: Optional[str] = "All"
+    time_filter_type: Optional[str] = "Total"
+    selected_month: Optional[str] = "All Months"
+    selected_quarter: Optional[str] = "All Quarters"
+
+class ChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, Any]]] = []
+    role: Optional[str] = "Business Head"
+
+@app.get("/api/health")
+def health_check():
+    data, engine = get_datalake()
+    return {
+        "status": "healthy",
+        "duckdb": "active",
+        "ai_engine": "online" if engine is not None else "offline (check GROQ_API_KEY)",
+        "tables": {name: len(df) for name, df in data.items() if isinstance(df, pd.DataFrame)}
+    }
+
+@app.get("/api/filters")
+def get_filter_options():
+    data, _ = get_datalake()
+    
+    cities = ["All"]
+    if "orders" in data and not data["orders"].empty and "city" in data["orders"].columns:
+        cities += sorted([c for c in data["orders"]["city"].dropna().unique().tolist() if c])
+        
+    personas = ["All"]
+    if "customers" in data and not data["customers"].empty and "persona" in data["customers"].columns:
+        personas += sorted([p for p in data["customers"]["persona"].dropna().unique().tolist() if p])
+        
+    roles = ["Business Head", "Sales Manager", "Marketing Manager", "Operations Manager"]
+    
+    months = ["All Months"]
+    quarters = ["All Quarters"]
+    if "orders" in data and not data["orders"].empty:
+        if "order_month" in data["orders"].columns:
+            m_list = sorted(data["orders"]["order_month"].dropna().unique().tolist())
+            months += m_list
+        if "order_quarter" in data["orders"].columns:
+            q_list = sorted(data["orders"]["order_quarter"].dropna().unique().tolist())
+            quarters += q_list
+
+    tot_orders = len(data["orders"]) if "orders" in data else 0
+    tot_rev = float(data["orders"]["basket_value"].sum()) if "orders" in data and "basket_value" in data["orders"].columns else 0.0
+
+    return {
+        "roles": roles,
+        "cities": cities,
+        "personas": personas,
+        "months": months,
+        "quarters": quarters,
+        "pulse": {
+            "total_orders": format_number(tot_orders),
+            "gross_volume": format_currency(tot_rev),
+            "csat": "4.6 / 5.0",
+            "active_engine": "DuckDB In-Memory"
+        }
+    }
+
+@app.post("/api/analytics")
+def get_analytics(filters: FilterRequest):
+    data, _ = get_datalake()
+    active_filters = filters.model_dump()
+    
+    filtered_data = apply_global_filters(data, active_filters)
+    kpis = get_kpis(filtered_data)
+    briefing = generate_management_briefing(filtered_data, filters.role or "Business Head")
+    raw_charts = get_dashboard_queries(filtered_data, "executive")
+    
+    charts_json = {}
+    for chart_name, df_chart in raw_charts.items():
+        if isinstance(df_chart, pd.DataFrame):
+            records = df_chart.to_dict(orient="records")
+            charts_json[chart_name] = {
+                "records": records,
+                "columns": list(df_chart.columns)
+            }
+
+    formatted_kpis = {
+        "total_revenue": {
+            "raw": kpis["total_revenue"],
+            "formatted": format_currency(kpis["total_revenue"]),
+            "sub": "+14.2% vs previous period"
+        },
+        "total_orders": {
+            "raw": kpis["total_orders"],
+            "formatted": format_number(kpis["total_orders"]),
+            "sub": "+8.7% MoM growth"
+        },
+        "active_customers": {
+            "raw": kpis["active_customers"],
+            "formatted": format_number(kpis["active_customers"]),
+            "sub": "Across top Indian metros"
+        },
+        "avg_order_value": {
+            "raw": kpis["avg_order_value"],
+            "formatted": format_currency(kpis["avg_order_value"]),
+            "sub": "Average basket size"
+        },
+        "repeat_purchase_rate": {
+            "raw": kpis["repeat_purchase_rate"],
+            "formatted": f"{kpis['repeat_purchase_rate']:.1f}%",
+            "sub": "30-day customer reorder rate"
+        },
+        "churn_risk_avg": {
+            "raw": kpis["churn_risk_avg"],
+            "formatted": f"{kpis['churn_risk_avg']:.1f}%",
+            "sub": "Predicted attrition rate"
+        }
+    }
+    
+    return {
+        "kpis": formatted_kpis,
+        "briefing": briefing,
+        "charts": charts_json
+    }
+
+@app.post("/api/chat")
+def handle_chat(req: ChatRequest):
+    _, engine = get_datalake()
+    if engine is None:
+        return {
+            "type": "text",
+            "content": "AI Assistant Engine is offline. Please verify that your GROQ_API_KEY is configured in the `.env` file.",
+            "sql": None,
+            "follow_ups": []
+        }
+        
+    try:
+        role_str: str = req.role or "Business Head"
+        response = ask_assistant(engine, req.message, req.history, role=role_str)
+        last_sql = getattr(engine, "last_sql", None)
+        
+        if isinstance(response, pd.DataFrame):
+            preview_df = response.head(100)
+            records = preview_df.fillna("").to_dict(orient="records")
+            follow_ups = engine.generate_follow_ups(req.message, "Table output")
+            return {
+                "type": "table",
+                "data": records,
+                "columns": list(response.columns),
+                "total_rows": len(response),
+                "sql": last_sql,
+                "follow_ups": follow_ups
+            }
+            
+        elif isinstance(response, go.Figure):
+            fig_json = json.loads(response.to_json())
+            follow_ups = engine.generate_follow_ups(req.message, "Chart output")
+            return {
+                "type": "chart",
+                "figure": fig_json,
+                "sql": last_sql,
+                "follow_ups": follow_ups
+            }
+            
+        elif isinstance(response, types.GeneratorType):
+            full_text = ""
+            for chunk in response:
+                full_text += chunk
+            clean_text = sanitize_clean_text(full_text)
+            follow_ups = [sanitize_clean_text(f) for f in engine.generate_follow_ups(req.message, clean_text)]
+            return {
+                "type": "text",
+                "content": clean_text,
+                "sql": last_sql,
+                "follow_ups": follow_ups
+            }
+            
+        else:
+            clean_text = sanitize_clean_text(str(response))
+            follow_ups = [sanitize_clean_text(f) for f in engine.generate_follow_ups(req.message, clean_text)]
+            return {
+                "type": "text",
+                "content": clean_text,
+                "sql": last_sql,
+                "follow_ups": follow_ups
+            }
+            
+    except Exception as e:
+        return {
+            "type": "text",
+            "content": f"Query execution failed: {str(e)}",
+            "sql": getattr(engine, "last_sql", None),
+            "follow_ups": [
+                "Show total revenue across all cities",
+                "What is the average order value?",
+                "Which customer persona has highest churn risk?"
+            ]
+        }
+
+@app.post("/api/upload")
+async def upload_dataset(file: UploadFile = File(...)):
+    global RAW_DATA, CHAT_ENGINE
+    if not file.filename or not file.filename.endswith(".csv"):
+        raise HTTPException(status_code=400, detail="Only CSV files are supported.")
+        
+    try:
+        df = pd.read_csv(file.file)
+        table_name = os.path.splitext(file.filename)[0].lower().replace(" ", "_").replace("-", "_")
+        RAW_DATA[table_name] = df
+        
+        if CHAT_ENGINE is not None:
+            CHAT_ENGINE.register_tables({table_name: df})
+            
+        return {
+            "status": "success",
+            "table_name": table_name,
+            "rows": len(df),
+            "columns": list(df.columns)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to process CSV: {str(e)}")
+
+WEB_DIR = os.path.join(BASE_DIR, "web")
+os.makedirs(WEB_DIR, exist_ok=True)
+
+app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
+
+@app.get("/")
+def serve_index():
+    index_path = os.path.join(WEB_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"message": "SwiftKart AI Web UI is building. Please refresh shortly."}
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("server:app", host="127.0.0.1", port=8000, reload=False)

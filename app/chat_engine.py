@@ -169,6 +169,7 @@ Question: {question}
     def _run_sql(self, sql: str) -> pd.DataFrame:
         """Execute the SQL query and return a Pandas DataFrame."""
         try:
+            self.last_sql = sql
             # DuckDB returns a pandas dataframe easily
             return self.con.execute(sql).df()
         except Exception as e:

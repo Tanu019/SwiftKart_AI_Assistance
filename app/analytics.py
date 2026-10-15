@@ -169,6 +169,7 @@ SwiftKart AI Management Report. Active customers: {format_number(kpis['active_cu
 def get_dashboard_queries(dataframes, section="executive"):
     """
     Runs ultra-fast in-memory vectorized aggregations for all dashboard charts.
+    Formats data with clean categories and chronological sorting.
     """
     results = {}
     orders = dataframes.get("orders")
@@ -178,41 +179,67 @@ def get_dashboard_queries(dataframes, section="executive"):
     
     try:
         if orders is not None and not orders.empty:
+            # 1. City Performance (Top 10 cities with revenue, order count, and AOV)
             if "city" in orders.columns and "basket_value" in orders.columns:
-                results["revenue_by_city"] = (
-                    orders.groupby("city", as_index=False)["basket_value"]
-                    .sum()
-                    .rename(columns={"basket_value": "revenue"})
-                    .sort_values("revenue", ascending=False)
+                city_agg = (
+                    orders.groupby("city", as_index=False)
+                    .agg(revenue=("basket_value", "sum"), orders=("order_id", "count"))
                 )
+                city_agg["aov"] = city_agg["revenue"] / city_agg["orders"].clip(lower=1)
+                results["revenue_by_city"] = city_agg.sort_values("revenue", ascending=False).head(10)
                 
-            if "basket_value" in orders.columns:
-                date_col = "_dt" if "_dt" in orders.columns else "order_timestamp"
-                trend_df = (
-                    orders.groupby(date_col, as_index=False)
-                    .agg(orders=("order_id", "count"), revenue=("basket_value", "sum"))
-                    .rename(columns={date_col: "dt"})
-                    .sort_values("dt")
-                )
+            # 2. Revenue & Order Trends (Monthly aggregation for clean, readable executive trend)
+            if "basket_value" in orders.columns and "order_timestamp" in orders.columns:
+                ts = pd.to_datetime(orders["order_timestamp"], errors="coerce")
+                
+                # Check if filtered to a single month (<= 31 days): if so, group by day
+                unique_months = orders["order_month"].dropna().unique() if "order_month" in orders.columns else []
+                if len(unique_months) == 1:
+                    trend_df = (
+                        orders.assign(_day=ts.dt.strftime("%d %b"))
+                        .groupby("_day", as_index=False)
+                        .agg(orders=("order_id", "count"), revenue=("basket_value", "sum"))
+                        .rename(columns={"_day": "dt"})
+                    )
+                else:
+                    # Multi-month or full year: group by Year-Month and display clean 'Jan 2025'
+                    trend_df = (
+                        orders.assign(_period=ts.dt.to_period("M").astype(str), _label=ts.dt.strftime("%b %Y"))
+                        .groupby(["_period", "_label"], as_index=False)
+                        .agg(orders=("order_id", "count"), revenue=("basket_value", "sum"))
+                        .sort_values("_period")
+                        .rename(columns={"_label": "dt"})
+                        [["dt", "orders", "revenue"]]
+                    )
                 results["orders_trend"] = trend_df
                 
+            # 3. Delivery Delay vs Customer Satisfaction (Clear delivery window buckets)
             if "delivery_time_minutes" in orders.columns and "customer_satisfaction_score" in orders.columns:
-                del_bucket = (orders["delivery_time_minutes"] // 10) * 10
-                sat_df = (
-                    orders.assign(delivery_bucket=del_bucket)
-                    .groupby("delivery_bucket", as_index=False)["customer_satisfaction_score"]
-                    .mean()
-                    .rename(columns={"customer_satisfaction_score": "avg_sat"})
-                    .sort_values("delivery_bucket")
+                del_mins = orders["delivery_time_minutes"]
+                del_windows = pd.cut(
+                    del_mins, 
+                    bins=[-1, 15, 25, 35, 45, 200], 
+                    labels=["Under 15 min", "15-25 min", "25-35 min", "35-45 min", "Over 45 min"]
                 )
+                sat_df = (
+                    orders.assign(delivery_window=del_windows.astype(str))
+                    .groupby("delivery_window", as_index=False)
+                    .agg(avg_sat=("customer_satisfaction_score", "mean"), orders=("order_id", "count"))
+                )
+                # Keep fixed logical order
+                order_map = {"Under 15 min": 1, "15-25 min": 2, "25-35 min": 3, "35-45 min": 4, "Over 45 min": 5}
+                sat_df["_sort"] = sat_df["delivery_window"].map(order_map).fillna(99)
+                sat_df = sat_df.sort_values("_sort").drop(columns=["_sort"])
                 results["delivery_vs_sat"] = sat_df
                 
+        # 4. Customer Persona Distribution
         if customers is not None and not customers.empty:
             if "persona" in customers.columns:
                 p_counts = customers["persona"].value_counts().reset_index()
                 p_counts.columns = ["persona", "count"]
                 results["persona_dist"] = p_counts
                 
+            # 5. Churn Risk by Persona
             if "persona" in customers.columns and "churn_risk_profile" in customers.columns:
                 churn_df = (
                     customers.assign(churn_num=pd.to_numeric(customers["churn_risk_profile"], errors="coerce") * 10)
@@ -221,8 +248,10 @@ def get_dashboard_queries(dataframes, section="executive"):
                     .rename(columns={"churn_num": "avg_churn"})
                     .sort_values("avg_churn", ascending=False)
                 )
+                churn_df["avg_churn"] = churn_df["avg_churn"].round(1)
                 results["churn_by_persona"] = churn_df
                 
+        # 6. Product Category Revenue
         if products is not None and order_items is not None and not products.empty and not order_items.empty:
             if "product_id" in products.columns and "product_id" in order_items.columns:
                 p_map = dict(zip(products["product_id"], products["category"]))
@@ -233,6 +262,7 @@ def get_dashboard_queries(dataframes, section="executive"):
                     .reset_index()
                     .rename(columns={"product_id": "category", "final_price": "revenue"})
                     .sort_values("revenue", ascending=False)
+                    .head(8)
                 )
                 results["cat_revenue"] = cat_rev
                 

@@ -36,11 +36,17 @@ An intelligent, instant data analytics dashboard designed for quick-commerce com
    - On Windows: `set GROQ_API_KEY=your_api_key_here`
    - On Mac/Linux: `export GROQ_API_KEY=your_api_key_here`
 
-4. **Launch the Dashboard:**
+4. **Launch the Web Application (Recommended):**
+   ```bash
+   python server.py
+   ```
+   Open your browser at **`http://localhost:8000`** to access the modern Single-Page Web Application.
+
+5. **Alternative — Launch Streamlit Dashboard:**
    ```bash
    streamlit run app/main.py
    ```
-   The dashboard will open automatically in your browser at `http://localhost:8501`.
+   The Streamlit version runs at `http://localhost:8501`.
 
 ## 📂 Project Structure
 - `app/main.py`: The main Streamlit application entry point.
