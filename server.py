@@ -322,10 +322,16 @@ def handle_chat_stream(req: ChatRequest):
         elif hasattr(response, '__iter__') and not isinstance(response, (str, list, dict)):
             yield f"data: {json.dumps({'type': 'start', 'sql': last_sql})}\n\n"
             full_text = ""
-            for chunk in response:
-                clean_chunk = sanitize_clean_text(chunk, strip_whitespace=False)
-                full_text += clean_chunk
-                yield f"data: {json.dumps({'type': 'chunk', 'delta': clean_chunk})}\n\n"
+            try:
+                for chunk in response:
+                    clean_chunk = sanitize_clean_text(chunk, strip_whitespace=False)
+                    full_text += clean_chunk
+                    yield f"data: {json.dumps({'type': 'chunk', 'delta': clean_chunk})}\n\n"
+            except Exception as stream_err:
+                print(f"[STREAM ERR] {stream_err}")
+                err_text = f"\n\n*(Stream notice: {str(stream_err)})*\n"
+                full_text += err_text
+                yield f"data: {json.dumps({'type': 'chunk', 'delta': err_text})}\n\n"
             follow_ups = [sanitize_clean_text(f, strip_whitespace=True) for f in engine.generate_follow_ups(req.message, full_text)]
             yield f"data: {json.dumps({'type': 'done', 'follow_ups': follow_ups})}\n\n"
         else:
