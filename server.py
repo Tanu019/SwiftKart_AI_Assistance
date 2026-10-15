@@ -81,7 +81,12 @@ async def lifespan(app: FastAPI):
     print("[READY] SwiftKart Backend is running on port 8000!")
     yield
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 app = FastAPI(title="SwiftKart AI Server", version="2.0.0", lifespan=lifespan)
+
+# High-efficiency GZip compression for JSON payloads & chart datasets (>500 bytes)
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.add_middleware(
     CORSMiddleware,

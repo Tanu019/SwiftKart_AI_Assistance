@@ -349,9 +349,26 @@ Rules:
                 "Show revenue breakdown by payment method."
             ]
 
+    @staticmethod
+    def _normalize_key(text: str) -> str:
+        s = text.lower().strip()
+        s = re.sub(r"[?!.,;:\'\"`]", "", s)
+        prefixes = [
+            "what is the", "what are the", "what is", "what are",
+            "which city has the", "which is the", "which are the", "which",
+            "show me the", "show me", "show", "tell me about", "tell me the",
+            "tell me", "display the", "display", "give me the", "give me",
+            "can you show", "can you tell", "please show", "please tell"
+        ]
+        for p in prefixes:
+            if s.startswith(p + " "):
+                s = s[len(p):].strip()
+                break
+        return re.sub(r"\s+", " ", s).strip()
+
     def query(self, question: str, history_list: list | None = None, status=None, role: str = "Business Head"):
-        """Fast-path execution with aggressive in-memory caching."""
-        cache_key = f"{role.lower()}::{question.strip().lower()}"
+        """Fast-path execution with intelligent normalized in-memory caching."""
+        cache_key = f"{role.lower()}::{self._normalize_key(question)}"
         if cache_key in self.cache:
             return self.cache[cache_key]
 

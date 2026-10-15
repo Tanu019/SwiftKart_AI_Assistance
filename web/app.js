@@ -327,22 +327,95 @@ function resetFilters() {
 }
 
 // -----------------------------------------------------------------------------
-// Fetch & Render Executive Analytics
 // -----------------------------------------------------------------------------
+// In-Memory Client Cache (0ms Instant Filter Switching)
+// -----------------------------------------------------------------------------
+const analyticsCache = new Map();
+
+function renderAnalyticsData(data) {
+  // 1. Update KPIs
+  if (data.kpis) {
+    state.lastKpiData = data.kpis;
+    elements.kpiRevenue.textContent = data.kpis.total_revenue.formatted;
+    elements.kpiRevenueSub.textContent = data.kpis.total_revenue.sub;
+
+    elements.kpiOrders.textContent = data.kpis.total_orders.formatted;
+    elements.kpiOrdersSub.textContent = data.kpis.total_orders.sub;
+
+    elements.kpiCustomers.textContent = data.kpis.active_customers.formatted;
+    elements.kpiCustomersSub.textContent = data.kpis.active_customers.sub;
+
+    elements.kpiAov.textContent = data.kpis.avg_order_value.formatted;
+    elements.kpiAovSub.textContent = data.kpis.avg_order_value.sub;
+
+    elements.kpiRepeat.textContent = data.kpis.repeat_purchase_rate.formatted;
+    elements.kpiRepeatSub.textContent = data.kpis.repeat_purchase_rate.sub;
+
+    elements.kpiChurn.textContent = data.kpis.churn_risk_avg.formatted;
+    elements.kpiChurnSub.textContent = data.kpis.churn_risk_avg.sub;
+
+    // Update progress bar widths dynamically
+    const fillRev = document.querySelector('.kpi-card[data-kpi="total_revenue"] .kpi-progress-fill');
+    if (fillRev) fillRev.style.width = '88%';
+
+    const fillOrders = document.querySelector('.kpi-card[data-kpi="total_orders"] .kpi-progress-fill');
+    if (fillOrders) fillOrders.style.width = '82%';
+
+    const fillCust = document.querySelector('.kpi-card[data-kpi="active_customers"] .kpi-progress-fill');
+    if (fillCust) fillCust.style.width = '75%';
+
+    const fillAov = document.querySelector('.kpi-card[data-kpi="avg_order_value"] .kpi-progress-fill');
+    if (fillAov) fillAov.style.width = '68%';
+
+    const fillRepeat = document.querySelector('.kpi-card[data-kpi="repeat_purchase_rate"] .kpi-progress-fill');
+    if (fillRepeat) {
+      const rateVal = parseFloat(data.kpis.repeat_purchase_rate.val || 65);
+      fillRepeat.style.width = `${Math.min(100, Math.max(10, rateVal))}%`;
+    }
+
+    const fillChurn = document.querySelector('.kpi-card[data-kpi="churn_risk_avg"] .kpi-progress-fill');
+    if (fillChurn) {
+      const churnVal = parseFloat(data.kpis.churn_risk_avg.val || 55);
+      fillChurn.style.width = `${Math.min(100, Math.max(10, churnVal))}%`;
+    }
+  }
+
+  // 2. Update Briefing
+  if (data.briefing) {
+    elements.briefingRoleLabel.textContent = `Executive Briefing • ${state.role}`;
+    elements.briefingAttention.textContent = data.briefing.needs_attention;
+    elements.briefingWatch.textContent = data.briefing.watch;
+    elements.briefingPositive.textContent = data.briefing.positive;
+    elements.briefingPriority.textContent = data.briefing.priority;
+  }
+
+  // 3. Render Dashboard Charts
+  if (data.charts) {
+    state.lastChartsData = data.charts;
+    renderDashboardCharts(data.charts);
+  }
+}
+
 async function fetchAnalytics() {
+  const payload = {
+    role: state.role,
+    city: state.filters.city,
+    persona: state.filters.persona,
+    time_filter_type: state.filters.time_filter_type,
+    selected_month: state.filters.selected_month,
+    selected_quarter: state.filters.selected_quarter
+  };
+
+  const cacheKey = JSON.stringify(payload);
+  if (analyticsCache.has(cacheKey)) {
+    renderAnalyticsData(analyticsCache.get(cacheKey));
+    return;
+  }
+
   if (state.isLoadingAnalytics) return;
   state.isLoadingAnalytics = true;
 
   try {
-    const payload = {
-      role: state.role,
-      city: state.filters.city,
-      persona: state.filters.persona,
-      time_filter_type: state.filters.time_filter_type,
-      selected_month: state.filters.selected_month,
-      selected_quarter: state.filters.selected_quarter
-    };
-
     const res = await fetch('/api/analytics', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -351,69 +424,8 @@ async function fetchAnalytics() {
 
     if (!res.ok) throw new Error('Analytics API error');
     const data = await res.json();
-
-    // 1. Update KPIs
-    if (data.kpis) {
-      state.lastKpiData = data.kpis;
-      elements.kpiRevenue.textContent = data.kpis.total_revenue.formatted;
-      elements.kpiRevenueSub.textContent = data.kpis.total_revenue.sub;
-
-      elements.kpiOrders.textContent = data.kpis.total_orders.formatted;
-      elements.kpiOrdersSub.textContent = data.kpis.total_orders.sub;
-
-      elements.kpiCustomers.textContent = data.kpis.active_customers.formatted;
-      elements.kpiCustomersSub.textContent = data.kpis.active_customers.sub;
-
-      elements.kpiAov.textContent = data.kpis.avg_order_value.formatted;
-      elements.kpiAovSub.textContent = data.kpis.avg_order_value.sub;
-
-      elements.kpiRepeat.textContent = data.kpis.repeat_purchase_rate.formatted;
-      elements.kpiRepeatSub.textContent = data.kpis.repeat_purchase_rate.sub;
-
-      elements.kpiChurn.textContent = data.kpis.churn_risk_avg.formatted;
-      elements.kpiChurnSub.textContent = data.kpis.churn_risk_avg.sub;
-
-      // Update progress bar widths dynamically
-      const fillRev = document.querySelector('.kpi-card[data-kpi="total_revenue"] .kpi-progress-fill');
-      if (fillRev) fillRev.style.width = '88%';
-
-      const fillOrders = document.querySelector('.kpi-card[data-kpi="total_orders"] .kpi-progress-fill');
-      if (fillOrders) fillOrders.style.width = '82%';
-
-      const fillCust = document.querySelector('.kpi-card[data-kpi="active_customers"] .kpi-progress-fill');
-      if (fillCust) fillCust.style.width = '75%';
-
-      const fillAov = document.querySelector('.kpi-card[data-kpi="avg_order_value"] .kpi-progress-fill');
-      if (fillAov) fillAov.style.width = '68%';
-
-      const fillRepeat = document.querySelector('.kpi-card[data-kpi="repeat_purchase_rate"] .kpi-progress-fill');
-      if (fillRepeat) {
-        const rateVal = parseFloat(data.kpis.repeat_purchase_rate.val || 65);
-        fillRepeat.style.width = `${Math.min(100, Math.max(10, rateVal))}%`;
-      }
-
-      const fillChurn = document.querySelector('.kpi-card[data-kpi="churn_risk_avg"] .kpi-progress-fill');
-      if (fillChurn) {
-        const churnVal = parseFloat(data.kpis.churn_risk_avg.val || 55);
-        fillChurn.style.width = `${Math.min(100, Math.max(10, churnVal))}%`;
-      }
-    }
-
-    // 2. Update Briefing
-    if (data.briefing) {
-      elements.briefingRoleLabel.textContent = `Executive Briefing • ${state.role}`;
-      elements.briefingAttention.textContent = data.briefing.needs_attention;
-      elements.briefingWatch.textContent = data.briefing.watch;
-      elements.briefingPositive.textContent = data.briefing.positive;
-      elements.briefingPriority.textContent = data.briefing.priority;
-    }
-
-    // 3. Render Dashboard Charts
-    if (data.charts) {
-      state.lastChartsData = data.charts;
-      renderDashboardCharts(data.charts);
-    }
-
+    analyticsCache.set(cacheKey, data);
+    renderAnalyticsData(data);
   } catch (err) {
     console.error('Failed to load analytics:', err);
   } finally {
@@ -513,7 +525,7 @@ function renderDashboardCharts(charts) {
       }
     };
 
-    Plotly.newPlot('chart-orders-trend', [trace1, trace2], layout, config);
+    Plotly.react('chart-orders-trend', [trace1, trace2], layout, config);
   }
 
   // Chart 2: Revenue by Metro City
@@ -555,7 +567,7 @@ function renderDashboardCharts(charts) {
       }
     };
 
-    Plotly.newPlot('chart-revenue-city', [trace], layout, config);
+    Plotly.react('chart-revenue-city', [trace], layout, config);
   }
 
   // Chart 3: CSAT Score vs Delivery Window
@@ -609,7 +621,7 @@ function renderDashboardCharts(charts) {
       }
     };
 
-    Plotly.newPlot('chart-delivery-sat', [traceCsat, traceBenchmark], layout, config);
+    Plotly.react('chart-delivery-sat', [traceCsat, traceBenchmark], layout, config);
   }
 
   // Chart 4: Customer Persona Composition
@@ -647,7 +659,7 @@ function renderDashboardCharts(charts) {
       ]
     };
 
-    Plotly.newPlot('chart-persona-dist', [trace], layout, config);
+    Plotly.react('chart-persona-dist', [trace], layout, config);
   }
 
   // Chart 5: Predicted Attrition Risk by Segment
@@ -688,7 +700,7 @@ function renderDashboardCharts(charts) {
       }
     };
 
-    Plotly.newPlot('chart-churn-persona', [trace], layout, config);
+    Plotly.react('chart-churn-persona', [trace], layout, config);
   }
 
   // Chart 6: Top Merchandise Categories by Turnover
@@ -724,7 +736,7 @@ function renderDashboardCharts(charts) {
       }
     };
 
-    Plotly.newPlot('chart-category-rev', [trace], layout, config);
+    Plotly.react('chart-category-rev', [trace], layout, config);
   }
 }
 
@@ -921,6 +933,8 @@ async function sendChatMessage(query) {
     let accumulatedText = '';
     let isStreamActive = false;
 
+    let renderRafId = null;
+
     while (true) {
       const { value, done } = await reader.read();
       if (done) break;
@@ -958,7 +972,7 @@ async function sendChatMessage(query) {
           continue;
         }
 
-        // Streaming text delta
+        // Streaming text delta with 60fps RAF throttling
         if (evt.type === 'chunk') {
           if (!isStreamActive) {
             isStreamActive = true;
@@ -981,15 +995,24 @@ async function sendChatMessage(query) {
           }
 
           accumulatedText += evt.delta;
-          if (contentEl) {
-            const formatted = formatAssistantMarkdown(accumulatedText);
-            contentEl.innerHTML = typeof marked !== 'undefined' ? marked.parse(formatted) : `<p>${escapeHtml(formatted)}</p>`;
+          if (contentEl && !renderRafId) {
+            renderRafId = requestAnimationFrame(() => {
+              renderRafId = null;
+              if (contentEl) {
+                const formatted = formatAssistantMarkdown(accumulatedText);
+                contentEl.innerHTML = typeof marked !== 'undefined' ? marked.parse(formatted) : `<p>${escapeHtml(formatted)}</p>`;
+              }
+              scrollChatToBottom();
+            });
           }
-          scrollChatToBottom();
         }
 
         // Stream complete
         if (evt.type === 'done') {
+          if (renderRafId) {
+            cancelAnimationFrame(renderRafId);
+            renderRafId = null;
+          }
           elements.chatThinkingIndicator.style.display = 'none';
           if (contentEl && accumulatedText) {
             const formatted = formatAssistantMarkdown(accumulatedText);
@@ -1105,6 +1128,9 @@ async function handleCsvUpload(file) {
 
     elements.uploadStatusMsg.textContent = `Successfully registered table "${data.table_name}" (${data.rows} rows)!`;
     elements.uploadStatusMsg.style.color = '#10B981';
+
+    // Invalidate client analytics cache so fresh data is rendered
+    analyticsCache.clear();
 
     setTimeout(() => {
       elements.modalUpload.style.display = 'none';
