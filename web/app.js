@@ -859,47 +859,156 @@ async function sendChatMessage(query) {
   appendUserMessage(query);
   state.chatHistory.push({ role: 'user', content: query, type: 'text' });
 
-  // 2. Show thinking indicator
+  // 2. Show thinking indicator with dynamic progress
   elements.chatThinkingIndicator.style.display = 'flex';
-  elements.thinkingStatusText.textContent = 'Translating question to DuckDB SQL & executing in-memory...';
+  elements.thinkingStatusText.textContent = 'Querying DuckDB datalake...';
   scrollChatToBottom();
 
-  try {
-    const payload = {
-      message: query,
-      history: state.chatHistory.slice(-4),
-      role: state.role
-    };
+  const payload = {
+    message: query,
+    history: state.chatHistory.slice(-4),
+    role: state.role
+  };
 
-    const res = await fetch('/api/chat', {
+  try {
+    const res = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
 
-    if (!res.ok) throw new Error('Chat API returned an error');
-    const responseData = await res.json();
+    if (!res.ok) throw new Error(`HTTP error ${res.status}`);
 
-    // 3. Hide thinking indicator
-    elements.chatThinkingIndicator.style.display = 'none';
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+    let buffer = '';
+    let msgEl = null;
+    let contentEl = null;
+    let executedSql = null;
+    let accumulatedText = '';
+    let isStreamActive = false;
 
-    // 4. Render assistant response
-    appendAssistantMessage(responseData);
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
 
-    if (responseData.content) {
-      state.chatHistory.push({ role: 'assistant', content: responseData.content, type: 'text' });
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split('\n\n');
+      buffer = events.pop(); // retain incomplete remainder
+
+      for (const rawEvent of events) {
+        if (!rawEvent.startsWith('data: ')) continue;
+        const jsonStr = rawEvent.slice(6).trim();
+        if (!jsonStr) continue;
+
+        let evt;
+        try {
+          evt = JSON.parse(jsonStr);
+        } catch {
+          continue;
+        }
+
+        // Table or Chart output
+        if (evt.type === 'table' || evt.type === 'chart' || evt.type === 'done_single') {
+          elements.chatThinkingIndicator.style.display = 'none';
+          appendAssistantMessage(evt);
+          if (evt.content) {
+            state.chatHistory.push({ role: 'assistant', content: evt.content, type: 'text' });
+          }
+          return;
+        }
+
+        // Start event with SQL
+        if (evt.type === 'start') {
+          executedSql = evt.sql;
+          elements.thinkingStatusText.textContent = 'Synthesizing executive brief...';
+          continue;
+        }
+
+        // Streaming text delta
+        if (evt.type === 'chunk') {
+          if (!isStreamActive) {
+            isStreamActive = true;
+            elements.chatThinkingIndicator.style.display = 'none';
+
+            msgEl = document.createElement('div');
+            msgEl.className = 'chat-message assistant';
+            msgEl.innerHTML = `
+              <div class="msg-avatar">${ICONS.bot}</div>
+              <div class="msg-body">
+                <div class="msg-author">
+                  <span>SwiftKart AI Analyst</span>
+                  <span class="msg-time">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                </div>
+                <div class="msg-content markdown-body"></div>
+              </div>
+            `;
+            contentEl = msgEl.querySelector('.msg-content');
+            elements.chatMessagesFlow.appendChild(msgEl);
+          }
+
+          accumulatedText += evt.delta;
+          if (contentEl) {
+            contentEl.innerHTML = typeof marked !== 'undefined' ? marked.parse(accumulatedText) : `<p>${escapeHtml(accumulatedText)}</p>`;
+          }
+          scrollChatToBottom();
+        }
+
+        // Stream complete
+        if (evt.type === 'done') {
+          elements.chatThinkingIndicator.style.display = 'none';
+          if (executedSql && msgEl) {
+            const bodyDiv = msgEl.querySelector('.msg-body');
+            const sqlDiv = document.createElement('details');
+            sqlDiv.className = 'sql-query-accordion';
+            sqlDiv.innerHTML = `
+              <summary class="sql-query-toggle">
+                ${ICONS.code}
+                <span>View Executed SQL Query</span>
+              </summary>
+              <div class="sql-query-content"><code>${escapeHtml(executedSql)}</code></div>
+            `;
+            bodyDiv.appendChild(sqlDiv);
+          }
+
+          if (accumulatedText) {
+            state.chatHistory.push({ role: 'assistant', content: accumulatedText, type: 'text' });
+          }
+
+          if (evt.follow_ups && evt.follow_ups.length > 0) {
+            renderFollowUpChips(evt.follow_ups);
+          }
+          scrollChatToBottom();
+        }
+      }
     }
 
   } catch (err) {
-    console.error('Chat error:', err);
-    elements.chatThinkingIndicator.style.display = 'none';
-    appendAssistantMessage({
-      type: 'text',
-      content: `Failed to get answer from AI Engine: ${err.message}. Please verify GROQ_API_KEY.`,
-      follow_ups: []
-    });
+    console.warn('Streaming error, falling back to standard API:', err);
+    try {
+      const res = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      elements.chatThinkingIndicator.style.display = 'none';
+      if (!res.ok) throw new Error('Chat API returned an error');
+      const responseData = await res.json();
+      appendAssistantMessage(responseData);
+      if (responseData.content) {
+        state.chatHistory.push({ role: 'assistant', content: responseData.content, type: 'text' });
+      }
+    } catch (fallbackErr) {
+      elements.chatThinkingIndicator.style.display = 'none';
+      appendAssistantMessage({
+        type: 'text',
+        content: `Failed to get answer: ${fallbackErr.message}. Please verify GROQ_API_KEY.`,
+        follow_ups: []
+      });
+    }
   } finally {
     state.isSendingChat = false;
+    elements.chatThinkingIndicator.style.display = 'none';
     elements.chatTextarea.focus();
   }
 }

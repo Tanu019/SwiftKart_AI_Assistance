@@ -27,10 +27,9 @@ from app.prompts import SYSTEM_PROMPT, FOLLOW_UP_PROMPT
 # ---------------------------------------------------------------------------
 
 def _build_llm() -> OpenAILike | None:
-    """Initialise the Groq LLM via the OpenAI-compatible endpoint."""
+    """Initialise the Groq LLM via the OpenAI-compatible endpoint with low latency settings."""
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        st.error("❌ Please set a valid GROQ_API_KEY in your .env file.")
         return None
 
     return OpenAILike(
@@ -38,8 +37,9 @@ def _build_llm() -> OpenAILike | None:
         api_base="https://api.groq.com/openai/v1",
         api_key=api_key,
         is_chat_model=True,
-        context_window=8192,
-        max_tokens=2048,
+        context_window=4096,
+        max_tokens=512,
+        temperature=0.1,
     )
 
 
@@ -116,61 +116,93 @@ class DuckDBEngine:
                         pass
         self.schema_context = "\n".join(self.schema_lines)
 
+    def _fast_path_sql(self, question: str) -> str | None:
+        """Instant sub-millisecond SQL template routing for executive inquiries."""
+        q = question.lower().strip()
+        
+        # 1. Top cities / revenue by city
+        if any(p in q for p in ["top cities", "revenue by city", "city by revenue", "highest revenue city", "highest revenue cities", "city revenue", "city-by-city"]):
+            return "SELECT city, ROUND(SUM(basket_value), 2) AS total_revenue, COUNT(*) AS orders, ROUND(AVG(basket_value), 2) AS aov FROM orders GROUP BY city ORDER BY total_revenue DESC LIMIT 5;"
+            
+        # 2. Churn risk by persona / customer segment churn
+        if any(p in q for p in ["churn risk", "churn by persona", "highest churn", "at-risk", "persona churn", "attrition risk", "greatest risk of churning"]):
+            return "SELECT persona, ROUND(AVG(churn_risk_profile)*10, 1) AS avg_churn_risk_pct, COUNT(*) AS customer_count, ROUND(AVG(monthly_income), 0) AS avg_income FROM customers GROUP BY persona ORDER BY avg_churn_risk_pct DESC;"
+            
+        # 3. Product categories / margins
+        if any(p in q for p in ["product categories", "highest margin", "category revenue", "top categories", "boost aov", "category margins", "categories by margin"]):
+            return "SELECT p.category, ROUND(AVG(p.margin_percentage), 2) AS avg_margin_pct, ROUND(SUM(oi.final_price), 2) AS total_revenue, COUNT(DISTINCT oi.order_id) AS total_orders FROM products p JOIN order_items oi ON p.product_id = oi.product_id GROUP BY p.category ORDER BY avg_margin_pct DESC LIMIT 5;"
+            
+        # 4. Average order value (AOV)
+        if any(p in q for p in ["average order value", "average basket", "aov", "mean order value", "basket size"]):
+            return "SELECT ROUND(AVG(basket_value), 2) AS avg_order_value, ROUND(MIN(basket_value), 2) AS min_basket, ROUND(MAX(basket_value), 2) AS max_basket, COUNT(*) AS total_orders FROM orders;"
+            
+        # 5. Delivery delay vs satisfaction / CSAT
+        if any(p in q for p in ["delivery delay", "csat", "satisfaction", "delivery time impact", "delayed deliveries", "fulfillment window"]):
+            return "SELECT CASE WHEN delivery_time_minutes <= 15 THEN 'Under 15 min' WHEN delivery_time_minutes <= 25 THEN '15-25 min' WHEN delivery_time_minutes <= 35 THEN '25-35 min' WHEN delivery_time_minutes <= 45 THEN '35-45 min' ELSE 'Over 45 min' END AS delivery_window, ROUND(AVG(customer_satisfaction_score), 2) AS avg_csat, COUNT(*) AS orders FROM orders GROUP BY 1 ORDER BY avg_csat DESC;"
+            
+        # 6. Repeat purchase rate / loyalty
+        if any(p in q for p in ["repeat purchase", "repeat rate", "loyalty", "reorder rate", "repeat purchase loyalty"]):
+            return "SELECT ROUND(AVG(CAST(repeat_purchase_30d AS INT))*100, 1) AS repeat_rate_30d_pct, ROUND(AVG(CAST(repeat_purchase_7d AS INT))*100, 1) AS repeat_rate_7d_pct, COUNT(*) AS total_orders FROM orders;"
+            
+        # 7. Customer personas distribution / spending habits
+        if any(p in q for p in ["customer personas", "persona breakdown", "spending habits", "buyer profiles", "customer persona composition"]):
+            return "SELECT c.persona, COUNT(DISTINCT c.customer_id) AS customers, ROUND(SUM(o.basket_value), 2) AS total_revenue, ROUND(AVG(o.basket_value), 2) AS avg_order_value FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.persona ORDER BY total_revenue DESC;"
+            
+        # 8. Revenue growth / seasonal trends / trajectory
+        if any(p in q for p in ["revenue growth", "growth trajectory", "peak seasons", "trends over time", "monthly revenue", "factors driving our current revenue"]):
+            return "SELECT strftime('%Y-%m', order_timestamp) AS month, COUNT(*) AS orders, ROUND(SUM(basket_value), 2) AS revenue, ROUND(AVG(basket_value), 2) AS aov FROM orders GROUP BY 1 ORDER BY 1;"
+
+        # 9. Weekday vs Weekend
+        if any(p in q for p in ["weekday", "weekend", "weekday vs weekend"]):
+            return "SELECT CASE WHEN strftime('%w', order_timestamp) IN ('0', '6') THEN 'Weekend' ELSE 'Weekday' END AS day_type, COUNT(*) AS order_count, ROUND(SUM(basket_value), 2) AS total_revenue, ROUND(AVG(basket_value), 2) AS aov FROM orders GROUP BY 1;"
+
+        # 10. Briefing / high churn retention
+        if any(p in q for p in ["strategic briefing", "retention plan", "high churn cities"]):
+            return "SELECT c.city, ROUND(AVG(c.churn_risk_profile)*10, 1) AS avg_churn_pct, COUNT(DISTINCT c.customer_id) AS customers, ROUND(SUM(o.basket_value), 2) AS total_revenue FROM customers c LEFT JOIN orders o ON c.customer_id = o.customer_id GROUP BY c.city ORDER BY avg_churn_pct DESC LIMIT 5;"
+
+        return None
+
     def _generate_sql(self, question: str, history: str = "", error_msg: str = "", role: str = "Business Head") -> str:
+        # 1. Fast path match first
+        fast = self._fast_path_sql(question)
+        if fast:
+            return fast
+
+        # 2. Focused LLM generation
         prompt = f"""You are an expert SQL Data Analyst acting as a {role}.
-Given the following database schema:
-{self.schema_context}
+Given these tables in DuckDB:
+- customers (customer_id, persona, age, city, monthly_income, app_engagement_score, churn_risk_profile)
+- products (product_id, category, subcategory, brand, mrp, selling_price, margin_percentage)
+- orders (order_id, customer_id, order_timestamp, city, basket_value, delivery_time_minutes, customer_satisfaction_score, repeat_purchase_30d)
+- order_items (order_item_id, order_id, product_id, quantity, unit_price, final_price)
 
-Write a SQL query (DuckDB dialect) to answer the user's question.
+Write a SQL query (DuckDB dialect) to answer: "{question}"
 Rules:
-- Return ONLY the raw SQL query. Do not include markdown formatting (like ```sql), do not explain your answer, and DO NOT output any <think> reasoning process. Just output the final SQL.
-- Ensure column names match exactly.
-
-Recent Chat History (for context):
-{history}
-
-{f"WARNING: Your previous SQL failed with this error: {error_msg}. Please fix the syntax or column names and try again." if error_msg else ""}
-
-Question: {question}
+- Return ONLY the executable SQL query. No markdown, no comments, no thought tags.
+- Limit rows to 10 unless asked otherwise.
 """
         response = self.llm.complete(prompt)
         raw_sql = str(response).strip()
         
-        # Extract SQL from markdown if present
         match = re.search(r"```(?:sql)?\n(.*?)\n```", raw_sql, flags=re.DOTALL | re.IGNORECASE)
-        if match:
-            sql = match.group(1)
-        else:
-            sql = raw_sql
-            # Remove properly closed <think> blocks
-            sql = re.sub(r"<think>.*?</think>", "", sql, flags=re.DOTALL).strip()
-            # If there's an unclosed <think> block, find the first SELECT
-            if "<think>" in sql.lower():
-                idx = sql.upper().find("SELECT ")
-                if idx != -1:
-                    sql = sql[idx:]
-                else:
-                    raise ValueError("The AI generated a thought process but got cut off before writing the SELECT statement. Please try again.")
-            # Clean up backticks
-            sql = re.sub(r"^```(?:sql)?\n?", "", sql)
-            sql = re.sub(r"\n?```$", "", sql)
-            
-        # Ensure it actually looks like a query
-        if not sql.upper().startswith("SELECT") and not sql.upper().startswith("WITH"):
-            # try to find SELECT one more time
+        sql = match.group(1) if match else raw_sql
+        sql = re.sub(r"<think>.*?</think>", "", sql, flags=re.DOTALL).strip()
+        if "<think>" in sql.lower():
             idx = sql.upper().find("SELECT ")
             if idx != -1:
                 sql = sql[idx:]
-            else:
-                raise ValueError(f"No valid SELECT statement found in output:\n{raw_sql[:200]}...")
-            
+        sql = re.sub(r"^```(?:sql)?\n?", "", sql)
+        sql = re.sub(r"\n?```$", "", sql)
+        if not sql.upper().startswith("SELECT") and not sql.upper().startswith("WITH"):
+            idx = sql.upper().find("SELECT ")
+            if idx != -1:
+                sql = sql[idx:]
         return sql.strip()
 
     def _run_sql(self, sql: str) -> pd.DataFrame:
         """Execute the SQL query and return a Pandas DataFrame."""
         try:
             self.last_sql = sql
-            # DuckDB returns a pandas dataframe easily
             return self.con.execute(sql).df()
         except Exception as e:
             raise ValueError(f"SQL Execution Error: {e}\nQuery was: {sql}")
@@ -181,7 +213,7 @@ Question: {question}
             return "TEXT"
             
         q_lower = question.lower()
-        chart_keywords = ["chart", "graph", "plot", "trend", "visualize", "distribution", "histogram", "bar chart", "line chart", "pie chart"]
+        chart_keywords = ["chart", "graph", "plot", "histogram", "bar chart", "line chart", "pie chart"]
         table_keywords = ["table", "raw data", "list all", "list of", "show records", "show data", "tabular", "dataframe", "all rows", "csv"]
         
         if any(k in q_lower for k in chart_keywords):
@@ -191,21 +223,26 @@ Question: {question}
         return "TEXT"
 
     def _synthesize_text(self, question: str, df: pd.DataFrame, status=None, role="Business Head"):
-        data_str = df.head(20).to_string(index=False)
+        data_str = df.head(8).to_string(index=False)
         
-        if status: status.update(label="Synthesizing management insight...", state="running")
-        
-        prompt = f"""{SYSTEM_PROMPT}
-
-You are analyzing this data for a {role}.
-A data query was run to answer the following question:
-"{question}"
-
-The raw output from the query was:
+        prompt = f"""You are SwiftKart AI acting as a {role}.
+Question: "{question}"
+Data Result:
 {data_str}
 
-Now write a highly structured management response based ONLY on this data.
-DO NOT output any <think> tags. Just output the final polished text formatted with the requested sections (📌 Key Insight, 📊 Supporting Data, 🔎 Why It Matters, 🎯 Recommended Action).
+Provide a fast, high-impact executive response strictly based on the data.
+Formatting:
+### Key Insight
+• [1 concise bullet summarizing the core finding]
+
+### Supporting Data
+• [1-2 bullets with exact numbers and metrics]
+
+### Recommended Action
+1. **[Immediate Action]**: [Specific step based on the data]
+2. **[Follow-up]**: [Next strategic check]
+
+Rules: ZERO emojis. Do NOT include <think> tags. Keep it under 150 words.
 """
         response_gen = self.llm.stream_complete(prompt)
         in_think_block = False
@@ -228,7 +265,6 @@ DO NOT output any <think> tags. Just output the final polished text formatted wi
                 if buffer.endswith("<") or buffer.endswith("<t") or buffer.endswith("<th") or buffer.endswith("<thi") or buffer.endswith("<thin"):
                     continue
                 if buffer:
-                    # Strip newlines right after </think> if they leaked
                     if buffer.startswith("\n\n"):
                         buffer = buffer[2:]
                     elif buffer.startswith("\n"):
@@ -238,55 +274,37 @@ DO NOT output any <think> tags. Just output the final polished text formatted wi
                     
         if not in_think_block and buffer:
             yield buffer
+
     def _generate_chart(self, question: str, df: pd.DataFrame) -> go.Figure | str:
         """Generates Plotly Python code to visualize the DataFrame."""
         sample = df.head(5).to_dict(orient="records")
         prompt = f"""You are an expert Data Visualizer using Plotly.
 The user asked: "{question}"
-We have a pandas DataFrame named `df` with columns: {list(df.columns)}.
-Sample data: {sample}
-
-Write Python code using `plotly.graph_objects` as `go` to create a beautiful, modern chart.
+Columns: {list(df.columns)}. Sample: {sample}
+Write Python code using `plotly.graph_objects` as `go` to create a beautiful chart.
 Rules:
-- Store the final figure in a variable named `fig`.
-- Use a sleek dark theme for the layout (e.g., paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#f8fafc')).
-- Do NOT use `fig.show()`.
-- Do NOT import pandas or plotly (they are already imported).
-- Return ONLY the raw Python code, no markdown, no explanations.
+- Store the final figure in `fig`.
+- Sleek dark layout: paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='#f8fafc').
+- Return ONLY the raw Python code, no markdown, no think tags.
 """
         response = self.llm.complete(prompt)
         raw_code = str(response).strip()
         
-        # Extract code from markdown if present
         match = re.search(r"```(?:python)?\n(.*?)\n```", raw_code, flags=re.DOTALL | re.IGNORECASE)
-        if match:
-            code = match.group(1)
-        else:
-            code = raw_code
-            # Remove properly closed <think> blocks
-            code = re.sub(r"<think>.*?</think>", "", code, flags=re.DOTALL).strip()
-            # If there's an unclosed <think> block, find the first 'import ' or 'fig ='
-            if "<think>" in code.lower():
-                idx = code.find("import ")
-                if idx == -1:
-                    idx = code.find("fig =")
-                if idx != -1:
-                    code = code[idx:]
-            
-            # Clean up backticks
-            code = re.sub(r"^```(?:python)?\n?", "", code)
-            code = re.sub(r"\n?```$", "", code)
+        code = match.group(1) if match else raw_code
+        code = re.sub(r"<think>.*?</think>", "", code, flags=re.DOTALL).strip()
+        code = re.sub(r"^```(?:python)?\n?", "", code)
+        code = re.sub(r"\n?```$", "", code)
         
-        # Execute chart code safely
         local_ns = {"df": df, "go": go, "fig": None}
         try:
             exec(code.strip(), local_ns) # noqa: S102
             fig = local_ns.get("fig")
             if isinstance(fig, go.Figure):
                 return fig
-            return "⚠️ Failed to generate chart object."
+            return "Failed to generate chart object."
         except Exception as e:
-            return f"⚠️ Chart generation failed: {e}"
+            return f"Chart generation failed: {e}"
 
     def generate_follow_ups(self, question: str, response_text: str) -> list[str]:
         """Provides instant high-value follow-up questions with zero API latency."""
@@ -328,69 +346,64 @@ Rules:
             ]
 
     def query(self, question: str, history_list: list | None = None, status=None, role: str = "Business Head"):
-        """Main routing execution with caching, memory, and self-healing."""
-        # 1. Check Cache
-        if status: status.update(label="Checking memory...", state="running")
-        if question in self.cache:
-            if status: status.update(label="Serving from cache...", state="complete")
-            return self.cache[question]
-            
-        # 2. Format History
-        history_str = ""
-        if history_list:
-            # Take last 4 messages to avoid blowing up context
-            for msg in history_list[-4:]:
-                if msg["type"] == "text":
-                    role = "User" if msg["role"] == "user" else "Assistant"
-                    history_str += f"{role}: {msg['content']}\n"
-                    
-        # 3. Self-Healing SQL Loop
-        sql = ""
-        df = None
-        error_msg = ""
-        max_retries = 3
-        
-        for attempt in range(max_retries):
-            try:
-                if status: status.update(label=f"Generating SQL (Attempt {attempt+1})...", state="running")
-                sql = self._generate_sql(question, history_str, error_msg, role)
-                if status: status.update(label="Executing query in DuckDB...", state="running")
-                df = self._run_sql(sql)
-                break # Success!
-            except Exception as e:
-                error_msg = str(e)
-                if attempt == max_retries - 1:
-                    if status: status.update(label="Failed to generate correct SQL.", state="error")
-                    return f"⚠️ I encountered a data error I couldn't fix: {e}"
-        
-        if df is None:
-            if status: status.update(label="Failed to retrieve data.", state="error")
-            return "⚠️ No data could be retrieved for this query."
+        """Fast-path execution with aggressive in-memory caching."""
+        cache_key = f"{role.lower()}::{question.strip().lower()}"
+        if cache_key in self.cache:
+            return self.cache[cache_key]
 
-        # 4. Route Output
-        try:
-            if status: status.update(label="Routing data...", state="running")
-            route = self._determine_route(question, df)
-            
-            if route == "TABLE":
-                self.cache[question] = df
-                if status: status.update(label="Complete!", state="complete")
-                return df
-            elif route == "CHART":
-                if status: status.update(label="Generating interactive chart...", state="running")
-                result = self._generate_chart(question, df)
-                if isinstance(result, str) and result.startswith("⚠️"):
-                    # Fallback to streaming text
-                    return self._synthesize_text(question, df, status)
-                self.cache[question] = result
-                if status: status.update(label="Complete!", state="complete")
-                return result
-            else:
+        # Fast path SQL attempt
+        sql = self._fast_path_sql(question)
+        df = None
+        if sql:
+            try:
+                df = self._run_sql(sql)
+            except Exception:
+                df = None
+
+        if df is None:
+            # Fall back to LLM SQL generation
+            history_str = ""
+            if history_list:
+                for msg in history_list[-2:]:
+                    if msg.get("type") == "text":
+                        r = "User" if msg.get("role") == "user" else "Assistant"
+                        history_str += f"{r}: {msg.get('content', '')}\n"
+
+            error_msg = ""
+            for attempt in range(2):
+                try:
+                    sql = self._generate_sql(question, history_str, error_msg, role)
+                    df = self._run_sql(sql)
+                    break
+                except Exception as e:
+                    error_msg = str(e)
+                    if attempt == 1:
+                        return f"Query failed: {e}"
+
+        if df is None:
+            return "No data retrieved for this inquiry."
+
+        route = self._determine_route(question, df)
+        if route == "TABLE":
+            self.cache[cache_key] = df
+            return df
+        elif route == "CHART":
+            result = self._generate_chart(question, df)
+            if isinstance(result, str) and "failed" in result.lower():
                 return self._synthesize_text(question, df, status, role)
-                
-        except Exception as e:
-            if status: status.update(label="Routing failed.", state="error")
-            return f"⚠️ An error occurred during routing: {e}"
+            self.cache[cache_key] = result
+            return result
+        else:
+            def _caching_streamer():
+                accumulated = []
+                for chunk in self._synthesize_text(question, df, status, role):
+                    accumulated.append(chunk)
+                    yield chunk
+                full_text = "".join(accumulated).strip()
+                if full_text:
+                    self.cache[cache_key] = full_text
+
+            return _caching_streamer()
 
 
 # ---------------------------------------------------------------------------

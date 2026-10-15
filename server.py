@@ -22,7 +22,7 @@ from typing import Optional, List, Dict, Any
 from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 import pandas as pd
@@ -251,7 +251,7 @@ def handle_chat(req: ChatRequest):
                 "follow_ups": follow_ups
             }
             
-        elif isinstance(response, types.GeneratorType):
+        elif hasattr(response, '__iter__') and not isinstance(response, (str, list, dict)):
             full_text = ""
             for chunk in response:
                 full_text += chunk
@@ -285,6 +285,44 @@ def handle_chat(req: ChatRequest):
                 "Which customer persona has highest churn risk?"
             ]
         }
+
+@app.post("/api/chat/stream")
+def handle_chat_stream(req: ChatRequest):
+    _, engine = get_datalake()
+    if engine is None:
+        def err_stream():
+            yield "data: " + json.dumps({"type": "error", "content": "AI Assistant Engine is offline. Please check your GROQ_API_KEY."}) + "\n\n"
+        return StreamingResponse(err_stream(), media_type="text/event-stream")
+
+    role_str = req.role or "Business Head"
+    response = ask_assistant(engine, req.message, req.history, role=role_str)
+    last_sql = getattr(engine, "last_sql", None)
+
+    def event_stream():
+        if isinstance(response, pd.DataFrame):
+            preview_df = response.head(100)
+            records = preview_df.fillna("").to_dict(orient="records")
+            follow_ups = engine.generate_follow_ups(req.message, "Table output")
+            yield f"data: {json.dumps({'type': 'table', 'data': records, 'columns': list(response.columns), 'total_rows': len(response), 'sql': last_sql, 'follow_ups': follow_ups})}\n\n"
+        elif isinstance(response, go.Figure):
+            fig_json = json.loads(response.to_json())
+            follow_ups = engine.generate_follow_ups(req.message, "Chart output")
+            yield f"data: {json.dumps({'type': 'chart', 'figure': fig_json, 'sql': last_sql, 'follow_ups': follow_ups})}\n\n"
+        elif hasattr(response, '__iter__') and not isinstance(response, (str, list, dict)):
+            yield f"data: {json.dumps({'type': 'start', 'sql': last_sql})}\n\n"
+            full_text = ""
+            for chunk in response:
+                clean_chunk = sanitize_clean_text(chunk)
+                full_text += clean_chunk
+                yield f"data: {json.dumps({'type': 'chunk', 'delta': clean_chunk})}\n\n"
+            follow_ups = [sanitize_clean_text(f) for f in engine.generate_follow_ups(req.message, full_text)]
+            yield f"data: {json.dumps({'type': 'done', 'follow_ups': follow_ups})}\n\n"
+        else:
+            clean_text = sanitize_clean_text(str(response))
+            follow_ups = [sanitize_clean_text(f) for f in engine.generate_follow_ups(req.message, clean_text)]
+            yield f"data: {json.dumps({'type': 'done_single', 'content': clean_text, 'sql': last_sql, 'follow_ups': follow_ups})}\n\n"
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 @app.post("/api/upload")
 async def upload_dataset(file: UploadFile = File(...)):
