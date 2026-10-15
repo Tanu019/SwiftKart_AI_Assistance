@@ -72,6 +72,11 @@ def get_datalake():
         RAW_DATA = load_data()
     if CHAT_ENGINE is None and RAW_DATA:
         CHAT_ENGINE = init_chat_engine(RAW_DATA)
+    elif CHAT_ENGINE is not None and getattr(CHAT_ENGINE, "llm", None) is None:
+        from app.chat_engine import _build_llm
+        new_llm = _build_llm()
+        if new_llm is not None:
+            CHAT_ENGINE.llm = new_llm
     return RAW_DATA, CHAT_ENGINE
 
 @asynccontextmanager

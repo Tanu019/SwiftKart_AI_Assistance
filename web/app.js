@@ -955,6 +955,21 @@ async function sendChatMessage(query) {
           continue;
         }
 
+        // Error event
+        if (evt.type === 'error') {
+          elements.chatThinkingIndicator.style.display = 'none';
+          appendAssistantMessage({
+            type: 'text',
+            content: evt.content || 'AI Assistant Engine is currently offline. Please configure your GROQ_API_KEY.',
+            follow_ups: evt.follow_ups || [
+              'Which city generated the highest gross revenue?',
+              'Which customer persona has the highest churn risk?'
+            ]
+          });
+          state.chatHistory.push({ role: 'assistant', content: evt.content, type: 'text' });
+          return;
+        }
+
         // Table or Chart output
         if (evt.type === 'table' || evt.type === 'chart' || evt.type === 'done_single') {
           elements.chatThinkingIndicator.style.display = 'none';
@@ -1041,7 +1056,15 @@ async function sendChatMessage(query) {
           }
           scrollChatToBottom();
         }
-      }
+    }
+
+    if (!isStreamActive && !msgEl) {
+      elements.chatThinkingIndicator.style.display = 'none';
+      appendAssistantMessage({
+        type: 'text',
+        content: 'AI Assistant received your inquiry. Please verify that `GROQ_API_KEY` is configured in Render Environment Variables.',
+        follow_ups: ['Which customer persona has the highest churn risk, and why?']
+      });
     }
 
   } catch (err) {

@@ -21,6 +21,8 @@ from llama_index.llms.openai_like import OpenAILike
 
 from app.prompts import SYSTEM_PROMPT, FOLLOW_UP_PROMPT
 
+from dotenv import load_dotenv
+load_dotenv()
 
 # ---------------------------------------------------------------------------
 # Groq LLM factory
@@ -89,7 +91,7 @@ class DuckDBEngine:
     3. Routes the result to Text, Table, or Chart.
     """
 
-    def __init__(self, dataframes: dict[str, pd.DataFrame], llm: LLM):
+    def __init__(self, dataframes: dict[str, pd.DataFrame], llm: LLM | None = None):
         self.llm = llm
         # Initialize an in-memory DuckDB connection
         self.con = duckdb.connect(database=':memory:')
@@ -169,6 +171,9 @@ class DuckDBEngine:
             return fast
 
         # 2. Focused LLM generation
+        if self.llm is None:
+            raise ValueError("Natural language SQL generation requires GROQ_API_KEY. Pre-indexed queries (revenue by city, churn risk by persona, margins, etc.) run instantly without LLM.")
+
         prompt = f"""You are an expert SQL Data Analyst acting as a {role}.
 Given these tables in DuckDB:
 - customers (customer_id, persona, age, city, monthly_income, app_engagement_score, churn_risk_profile)
@@ -223,6 +228,26 @@ Rules:
         return "TEXT"
 
     def _synthesize_text(self, question: str, df: pd.DataFrame, status=None, role="Business Head"):
+        if self.llm is None:
+            data_str = df.head(8).to_string(index=False)
+            cols = ", ".join([str(c) for c in df.columns[:4]])
+            lines = [
+                "### Key Insight\n\n",
+                f"- Successfully queried DuckDB datalake for **\"{question}\"** with {len(df)} matching records.\n\n",
+                "### Supporting Data\n\n",
+                f"- Primary dimensions: {cols}\n\n",
+                "### Data Summary\n\n",
+                f"```\n{data_str}\n```\n\n",
+                "### Strategic Actions\n\n",
+                "1. **Explore Trends**: Review the data summary above or cross-reference in the Executive Dashboard.\n\n",
+                "2. **Enable AI Deep Synthesis**: Add your `GROQ_API_KEY` to Render Environment Variables to activate conversational Qwen/Llama analysis.\n\n",
+                "### Watchlist\n\n",
+                "- High-speed DuckDB analytics engine is active and operational.\n"
+            ]
+            for line in lines:
+                yield line
+            return
+
         data_str = df.head(8).to_string(index=False)
         
         prompt = f"""You are SwiftKart AI Analyst acting as a {role}.
@@ -434,8 +459,6 @@ Rules:
 def init_chat_engine(dataframes: dict) -> DuckDBEngine | None:
     """Initialises the DuckDB engine."""
     llm = _build_llm()
-    if llm is None:
-        return None
 
     valid = {k: v for k, v in dataframes.items() if not v.empty}
     if not valid:
