@@ -126,8 +126,10 @@ def health_check():
     data, engine = get_datalake()
     return {
         "status": "healthy",
+        "version": "2.1.0-stream-resilient",
         "duckdb": "active",
         "ai_engine": "online" if engine is not None else "offline (check GROQ_API_KEY)",
+        "llm_connected": engine.llm is not None if engine else False,
         "tables": {name: len(df) for name, df in data.items() if isinstance(df, pd.DataFrame)}
     }
 
