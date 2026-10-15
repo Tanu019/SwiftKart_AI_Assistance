@@ -225,24 +225,32 @@ Rules:
     def _synthesize_text(self, question: str, df: pd.DataFrame, status=None, role="Business Head"):
         data_str = df.head(8).to_string(index=False)
         
-        prompt = f"""You are SwiftKart AI acting as a {role}.
+        prompt = f"""You are SwiftKart AI Analyst acting as a {role}.
 Question: "{question}"
 Data Result:
 {data_str}
 
-Provide a fast, high-impact executive response strictly based on the data.
-Formatting:
+Provide an executive, high-impact business analysis strictly based on the data above.
+
+Formatting Rules:
+1. Always format answers in structured paragraphs or distinct bullet points (- ) with a blank line between every section and bullet.
+2. Never run paragraphs or bullet items together into a continuous block.
+3. Absolutely ZERO emojis anywhere (no warning icons, symbols, or pictograms).
+4. Do NOT include <think> tags. Keep the total response concise (under 150 words).
+
+Structure:
 ### Key Insight
-• [1 concise bullet summarizing the core finding]
+- [1 concise bullet summarizing the core finding]
 
 ### Supporting Data
-• [1-2 bullets with exact numbers and metrics]
+- [1 to 2 bullets with exact figures, revenue in INR/Lakhs, margins, or percentages]
 
-### Recommended Action
-1. **[Immediate Action]**: [Specific step based on the data]
+### Strategic Actions
+1. **[Immediate Recommendation]**: [Specific step based on the data]
 2. **[Follow-up]**: [Next strategic check]
 
-Rules: ZERO emojis. Do NOT include <think> tags. Keep it under 150 words.
+### Watchlist
+- [1 bullet on risk, trend to monitor, or data limitation]
 """
         response_gen = self.llm.stream_complete(prompt)
         in_think_block = False
@@ -265,10 +273,6 @@ Rules: ZERO emojis. Do NOT include <think> tags. Keep it under 150 words.
                 if buffer.endswith("<") or buffer.endswith("<t") or buffer.endswith("<th") or buffer.endswith("<thi") or buffer.endswith("<thin"):
                     continue
                 if buffer:
-                    if buffer.startswith("\n\n"):
-                        buffer = buffer[2:]
-                    elif buffer.startswith("\n"):
-                        buffer = buffer[1:]
                     yield buffer
                     buffer = ""
                     

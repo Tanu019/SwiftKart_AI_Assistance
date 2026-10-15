@@ -28,19 +28,20 @@ from dotenv import load_dotenv
 import pandas as pd
 import plotly.graph_objects as go
 
-# Emoji stripping regex for crisp enterprise typography
+# Comprehensive emoji & pictogram stripping pattern for crisp enterprise typography
 EMOJI_PATTERN = re.compile(
-    r"[\U0001F600-\U0001F64F\U0001F300-\U0001F5FF\U0001F680-\U0001F6FF\U0001F1E0-\U0001F1FF\U00002702-\U000027B0\U000024C2-\U0001F251\U0001F900-\U0001F9FF\U0001FA70-\U0001FAFF]+",
+    r"[\U00010000-\U0010ffff\u2600-\u26ff\u2700-\u27bf\ufe00-\ufe0f\u2b50]+",
     flags=re.UNICODE
 )
 
-def sanitize_clean_text(val: Any) -> Any:
+def sanitize_clean_text(val: Any, strip_whitespace: bool = False) -> Any:
     if isinstance(val, str):
-        return EMOJI_PATTERN.sub("", val).strip()
+        cleaned = EMOJI_PATTERN.sub("", val)
+        return cleaned.strip() if strip_whitespace else cleaned
     elif isinstance(val, list):
-        return [sanitize_clean_text(item) for item in val]
+        return [sanitize_clean_text(item, strip_whitespace) for item in val]
     elif isinstance(val, dict):
-        return {k: sanitize_clean_text(v) for k, v in val.items()}
+        return {k: sanitize_clean_text(v, strip_whitespace) for k, v in val.items()}
     return val
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -312,14 +313,14 @@ def handle_chat_stream(req: ChatRequest):
             yield f"data: {json.dumps({'type': 'start', 'sql': last_sql})}\n\n"
             full_text = ""
             for chunk in response:
-                clean_chunk = sanitize_clean_text(chunk)
+                clean_chunk = sanitize_clean_text(chunk, strip_whitespace=False)
                 full_text += clean_chunk
                 yield f"data: {json.dumps({'type': 'chunk', 'delta': clean_chunk})}\n\n"
-            follow_ups = [sanitize_clean_text(f) for f in engine.generate_follow_ups(req.message, full_text)]
+            follow_ups = [sanitize_clean_text(f, strip_whitespace=True) for f in engine.generate_follow_ups(req.message, full_text)]
             yield f"data: {json.dumps({'type': 'done', 'follow_ups': follow_ups})}\n\n"
         else:
-            clean_text = sanitize_clean_text(str(response))
-            follow_ups = [sanitize_clean_text(f) for f in engine.generate_follow_ups(req.message, clean_text)]
+            clean_text = sanitize_clean_text(str(response), strip_whitespace=True)
+            follow_ups = [sanitize_clean_text(f, strip_whitespace=True) for f in engine.generate_follow_ups(req.message, clean_text)]
             yield f"data: {json.dumps({'type': 'done_single', 'content': clean_text, 'sql': last_sql, 'follow_ups': follow_ups})}\n\n"
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

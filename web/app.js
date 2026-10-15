@@ -21,6 +21,39 @@ const state = {
   isSendingChat: false
 };
 
+// -----------------------------------------------------------------------------
+// Markdown Configuration & Preprocessing (Paragraphs, Points, Zero Emojis)
+// -----------------------------------------------------------------------------
+if (typeof marked !== 'undefined') {
+  marked.setOptions({
+    breaks: true,
+    gfm: true
+  });
+}
+
+function formatAssistantMarkdown(text) {
+  if (!text) return '';
+  let str = String(text);
+  
+  // 1. Strip all unicode emojis, icons, and warning pictograms
+  str = str.replace(/[\u{1F000}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{FE00}-\u{FE0F}\u{2B50}]/gu, '');
+  
+  // 2. Ensure section headers have double line breaks before them
+  str = str.replace(/([^\n])\s*(###+\s*)/g, '$1\n\n$2');
+  
+  // 3. Ensure bullet points (•, -, *) have line breaks before them if joined to preceding sentences
+  str = str.replace(/([^\n])\s*([•\-\*]\s+)/g, '$1\n\n$2');
+  
+  // 4. Ensure numbered points (e.g. "SKUs.2. Action:" or "baseline.3. Step:") have line breaks before them
+  str = str.replace(/([^\n])\s*(\d+\.\s+\*\*)/g, '$1\n\n$2');
+  str = str.replace(/(\.)\s*(\d+\.\s+)/g, '$1\n\n$2');
+  
+  // 5. Convert bullet character • to markdown standard - for flawless HTML list rendering
+  str = str.replace(/^[ \t]*•[ \t]+/gm, '- ');
+  
+  return str;
+}
+
 // SVG Icon Helpers
 const ICONS = {
   sun: `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -741,7 +774,8 @@ function appendAssistantMessage(data) {
 
   // 1. Text or Markdown Content
   if (data.content) {
-    const renderedMarkdown = typeof marked !== 'undefined' ? marked.parse(data.content) : `<p>${escapeHtml(data.content)}</p>`;
+    const formatted = formatAssistantMarkdown(data.content);
+    const renderedMarkdown = typeof marked !== 'undefined' ? marked.parse(formatted) : `<p>${escapeHtml(formatted)}</p>`;
     bodyHtml += `<div class="msg-content markdown-body">${renderedMarkdown}</div>`;
   }
 
@@ -949,7 +983,8 @@ async function sendChatMessage(query) {
 
           accumulatedText += evt.delta;
           if (contentEl) {
-            contentEl.innerHTML = typeof marked !== 'undefined' ? marked.parse(accumulatedText) : `<p>${escapeHtml(accumulatedText)}</p>`;
+            const formatted = formatAssistantMarkdown(accumulatedText);
+            contentEl.innerHTML = typeof marked !== 'undefined' ? marked.parse(formatted) : `<p>${escapeHtml(formatted)}</p>`;
           }
           scrollChatToBottom();
         }
@@ -957,6 +992,10 @@ async function sendChatMessage(query) {
         // Stream complete
         if (evt.type === 'done') {
           elements.chatThinkingIndicator.style.display = 'none';
+          if (contentEl && accumulatedText) {
+            const formatted = formatAssistantMarkdown(accumulatedText);
+            contentEl.innerHTML = typeof marked !== 'undefined' ? marked.parse(formatted) : `<p>${escapeHtml(formatted)}</p>`;
+          }
           if (executedSql && msgEl) {
             const bodyDiv = msgEl.querySelector('.msg-body');
             const sqlDiv = document.createElement('details');
@@ -972,7 +1011,7 @@ async function sendChatMessage(query) {
           }
 
           if (accumulatedText) {
-            state.chatHistory.push({ role: 'assistant', content: accumulatedText, type: 'text' });
+            state.chatHistory.push({ role: 'assistant', content: formatAssistantMarkdown(accumulatedText), type: 'text' });
           }
 
           if (evt.follow_ups && evt.follow_ups.length > 0) {
